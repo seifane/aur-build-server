@@ -1,0 +1,13 @@
+{
+  "packages": [
+    "google-chrome",
+    "lens-bin",
+    "postman-bin",
+    "telegram-bin",
+    "clion",
+    "clion-jre",
+    "datagrip",
+    "datagrip-jre",
+    "android-studio"
+  ]
+}
