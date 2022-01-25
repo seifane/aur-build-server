@@ -1,0 +1,25 @@
+image: docker:18.09.7
+
+variables:
+  DOCKER_HOST: tcp://docker:2375/
+  DOCKER_DRIVER: overlay2
+  GIT_SUBMODULE_STRATEGY: recursive
+
+services:
+  - docker:18.09.7-dind
+
+stages:
+  - build
+  - deploy
+
+before_script:
+  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+build_image:
+  stage: build
+  script:
+    - export CI_APPLICATION_REPOSITORY=${CI_APPLICATION_REPOSITORY:-$CI_REGISTRY_IMAGE}
+    - docker build -t "$CI_APPLICATION_REPOSITORY:$CI_COMMIT_SHA" -t "$CI_APPLICATION_REPOSITORY:latest" .
+    - docker push "$CI_APPLICATION_REPOSITORY:$CI_COMMIT_SHA"
+    - docker push "$CI_APPLICATION_REPOSITORY:$CI_COMMIT_SHA"
+    - docker push "$CI_APPLICATION_REPOSITORY:latest"
