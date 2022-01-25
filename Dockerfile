@@ -5,6 +5,7 @@ RUN cargo build --release
 
 FROM archlinux:latest
 
+RUN pacman-db-upgrade
 RUN pacman -Syy
 RUN pacman -Su base-devel git libgit2 --noconfirm
 
