@@ -5,7 +5,8 @@ RUN cargo build --release
 
 FROM archlinux:latest
 
-RUN pacman -Syu base-devel git libgit2 --noconfirm
+RUN pacman -Syy
+RUN pacman -Su base-devel git libgit2 --noconfirm
 
 RUN mkdir /app
 RUN mkdir /app/config
