@@ -2,22 +2,16 @@ mod package_manager;
 mod config;
 mod utils;
 mod args;
+mod http;
 
-use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use args::Args;
 use actix_web::{App, HttpServer, get, web, HttpResponse, HttpRequest, middleware};
-use actix_web::dev::{Service, ServiceRequest};
-use actix_web::error::ErrorUnauthorized;
-use actix_web::http::header::{AUTHORIZATION, CONTENT_TYPE};
-use actix_web::http::{Error, HeaderValue, StatusCode};
-use actix_web::web::Query;
-use actix_web_httpauth::extractors::bearer::BearerAuth;
-use actix_web_httpauth::middleware::HttpAuthentication;
 use clap::Parser;
 use serde::{Serialize};
+use http::Auth;
 
 
 use package_manager::PackageManager;
@@ -92,23 +86,6 @@ async fn api_stop(data: web::Data<Mutex<PackageManager>>) -> HttpResponse {
     })
 }
 
-async fn validator(req: ServiceRequest, credentials: BearerAuth) -> Result<ServiceRequest, actix_web::Error> {
-    let args: Args = Args::parse();
-    let config = load_config(args.config_path);
-    if config.apikey.is_some() {
-        println!("api key is some");
-        if config.apikey.unwrap() == credentials.token().to_string() {
-            println!("api key is good");
-            return Ok(req);
-        } else {
-            println!("api key is shit");
-            return Err(ErrorUnauthorized("Unauthorized"));
-        }
-    }
-    println!("api key is none");
-    Ok(req)
-}
-
 async fn start_web() -> std::io::Result<()> {
     let args: Args = Args::parse();
     let config = load_config(args.config_path);
@@ -126,20 +103,7 @@ async fn start_web() -> std::io::Result<()> {
         App::new()
             .app_data(data.clone())
             .wrap(middleware::Logger::default())
-            .wrap(HttpAuthentication::bearer(validator))
-            // Hacky way to allow requests with no tokens
-            .wrap_fn(|mut req, srv| {
-                if !req.headers().contains_key("Authorization") {
-                    req.headers_mut().insert(
-                        AUTHORIZATION, HeaderValue::from_static("Bearer default")
-                    )
-                }
-                let fut = srv.call(req);
-                async {
-                    let mut res = fut.await?;
-                    Ok(res)
-                }
-            })
+            .wrap(Auth {apikey: config.apikey.clone()})
             .service(api_build_repo)
             .service(api_get_queue_finished)
             .service(api_commit)
