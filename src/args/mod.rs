@@ -8,4 +8,7 @@ pub struct Args {
 
     #[clap(short, long, default_value_t = 8888)]
     pub port: u16,
+
+    #[clap(short, long, default_value_t = String::from("config/config.json"))]
+    pub config_path: String,
 }

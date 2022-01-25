@@ -4,7 +4,7 @@ use std::{thread};
 use std::thread::JoinHandle;
 use std::time::{Duration, SystemTime};
 use serde::Serialize;
-use crate::config::{Config, load_config};
+use crate::config::Config;
 use crate::utils::{copy_packages, make_package};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -31,13 +31,13 @@ pub struct PackageManager {
 }
 
 impl PackageManager {
-    pub fn new() -> PackageManager {
+    pub fn new(config: Config) -> PackageManager {
         PackageManager {
             is_running: Arc::new(AtomicBool::new(false)),
             commit_queued: Arc::new(AtomicBool::new(false)),
             packages: Arc::new(Mutex::new(Vec::new())),
             workers_handles: vec![],
-            config: load_config(),
+            config,
         }
     }
 
