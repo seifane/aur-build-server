@@ -47,10 +47,9 @@ pub fn build_package(repo_name: &str) -> std::io::Result<Output> {
 
 pub fn copy_packages() {
     let serve_path = Path::new("./serve");
-    if serve_path.exists() {
-        fs::remove_dir_all(serve_path).unwrap();
+    if !serve_path.exists() {
+        fs::create_dir(serve_path).unwrap();
     }
-    fs::create_dir(serve_path).unwrap();
 
     let data_path = Path::new("./data");
     for path in fs::read_dir(data_path).unwrap() {
