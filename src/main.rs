@@ -8,7 +8,7 @@ use std::ops::Deref;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use args::Args;
-use actix_web::{App, HttpServer, get, web, HttpResponse, HttpRequest, middleware};
+use actix_web::{App, HttpServer, get, web, HttpResponse, HttpRequest, middleware, Responder};
 use clap::Parser;
 use serde::{Serialize};
 use http::Auth;
@@ -30,8 +30,8 @@ struct PackagesResponse<'a> {
     pub packages: &'a Vec<Package>,
 }
 
-#[get("/api/packages/rebuild/{package_name}")]
-async fn api_build_repo(data: web::Data<Mutex<PackageManager>>, req: HttpRequest) -> HttpResponse {
+// #[get("/api/packages/rebuild/{package_name}")]
+async fn api_build_repo(data: web::Data<Mutex<PackageManager>>, req: HttpRequest) -> impl Responder {
     let mut package_manager = data.lock().unwrap();
 
     let package_name: Option<&str> = req.match_info().get("package_name");
@@ -48,8 +48,7 @@ async fn api_build_repo(data: web::Data<Mutex<PackageManager>>, req: HttpRequest
     })
 }
 
-#[get("/api/packages")]
-async fn api_get_queue_finished(data: web::Data<Mutex<PackageManager>>) -> HttpResponse {
+async fn api_get_packages(data: web::Data<Mutex<PackageManager>>) -> impl Responder {
     let package_manager = data.lock().expect("package_manager");
     let x = package_manager.packages.lock().unwrap();
     HttpResponse::Ok().json(PackagesResponse {
@@ -59,7 +58,6 @@ async fn api_get_queue_finished(data: web::Data<Mutex<PackageManager>>) -> HttpR
     })
 }
 
-#[get("/api/commit")]
 async fn api_commit(data: web::Data<Mutex<PackageManager>>) -> HttpResponse {
     let mut package_manager = data.lock().unwrap();
     package_manager.queue_commit();
@@ -68,7 +66,6 @@ async fn api_commit(data: web::Data<Mutex<PackageManager>>) -> HttpResponse {
     })
 }
 
-#[get("/api/start")]
 async fn api_start(data: web::Data<Mutex<PackageManager>>) -> HttpResponse {
     let mut package_manager = data.lock().unwrap();
     package_manager.start_workers();
@@ -77,7 +74,6 @@ async fn api_start(data: web::Data<Mutex<PackageManager>>) -> HttpResponse {
     })
 }
 
-#[get("/api/stop")]
 async fn api_stop(data: web::Data<Mutex<PackageManager>>) -> HttpResponse {
     let mut package_manager = data.lock().unwrap();
     package_manager.stop_workers();
@@ -102,12 +98,17 @@ async fn start_web() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(data.clone())
-            .wrap(middleware::Logger::default())
-            .wrap(Auth {apikey: config.apikey.clone()})
-            .service(api_build_repo)
-            .service(api_get_queue_finished)
-            .service(api_commit)
-            .service(actix_files::Files::new("/", "serve").show_files_listing())
+            .service(actix_files::Files::new("/repo", "serve").show_files_listing())
+            .service(
+            web::scope("/api")
+                .service(web::resource("/start").to(api_start))
+                .service(web::resource("/stop").to(api_stop))
+                .service(web::resource("/commit").to(api_commit))
+                .service(web::resource("/packages").to(api_get_packages))
+                .service(web::resource("/packages/rebuild").to(api_build_repo))
+                .service(web::resource("/packages/rebuild/{package_name}").to(api_build_repo))
+                .wrap(Auth {apikey: config.apikey.clone()})
+            )
     }).bind(bind_addr)?.run().await
 }
 
