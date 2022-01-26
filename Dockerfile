@@ -3,7 +3,7 @@ COPY . /app
 WORKDIR /app
 RUN cargo build --release
 
-FROM archlinux:latest
+FROM archlinux/archlinux:latest
 
 RUN pacman-db-upgrade
 RUN pacman -Syy
