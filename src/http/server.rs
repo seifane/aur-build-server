@@ -1,4 +1,6 @@
+use std::fs;
 use std::ops::Deref;
+use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use actix_web::{App, HttpServer, web, HttpResponse, HttpRequest, Responder};
@@ -72,6 +74,11 @@ pub async fn start_web() -> std::io::Result<()> {
     data.lock().unwrap().start_workers();
     data.lock().unwrap().load_packages();
     data.lock().unwrap().queue_commit();
+
+    let serve_path = Path::new("./serve");
+    if !serve_path.exists() {
+        fs::create_dir(serve_path).unwrap();
+    }
 
     println!("Starting server on {} ...", bind_addr);
 
