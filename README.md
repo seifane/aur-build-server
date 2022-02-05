@@ -5,6 +5,33 @@
 This project aims to provide an external package making server based on any PKGBUILD based project.
 Right now it pulls AUR packages builds them with makepkg and serves them on a custom Arch repo.
 
+## Building
+
+```bash
+cargo build
+```
+
+or Docker image:
+
+```bash
+docker build -t aur-build-server:latest .
+```
+
+## Running
+
+Because the program uses pacman to install dependencies it needs root. However running it directly in root is a **bad** idea.
+The better way would be to run it with a user that has a no password root authorized access to pacman.
+Right now there's a Dockerfile that does that except a little more extreme by allowing all root with no password.
+
+You can run a local developer env by using the provided docker-compose and then exec into it like so :
+
+```bash
+docker-compose up -d
+docker-compose exec app /bin/bash
+```
+
+and run your `cargo run` inside that container
+
 ## Api
 
 - `GET /repo` Exposes the created Arch repository
@@ -29,6 +56,7 @@ You can auth a request by including the API key in the `Authorization` header or
 - [x] Some stuff is still hardcoded (like repo name)
 - [x] Better logging of builds (stdout & stderr of last try)
 - [x] Sometimes race conditions occurs when multiple makepkg processes are syncdeps, find a way to solve this
+- [ ] Restrict sudoers more in Dockerfile
 - [ ] Include CRON-like system to try to rebuild package regularly
 - [ ] Handle command line arguments in docker image
 - [ ] More documentation on cmd args
