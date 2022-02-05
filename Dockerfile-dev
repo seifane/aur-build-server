@@ -1,0 +1,7 @@
+FROM registry.idoucha.ch/seifane/aur-build-server:latest
+
+USER root
+RUN pacman -S --noconfirm rustup
+USER 1000
+RUN rustup default stable
+WORKDIR /app

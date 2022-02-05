@@ -2,11 +2,17 @@ use serde::{Deserialize};
 use std::fs::File;
 use std::io::{BufReader, Read};
 
+#[derive(Deserialize, Debug, Clone)]
+pub struct PackageConfig {
+    pub name: String,
+    pub run_before: Option<String>,
+}
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
+    pub repo_name: Option<String>,
     pub apikey: Option<String>,
-    pub packages: Vec<String>
+    pub packages: Vec<PackageConfig>,
 }
 
 pub fn load_config(path: String) -> Config {

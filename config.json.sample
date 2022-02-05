@@ -1,14 +1,13 @@
 {
+  "repo_name": "aurbuild",
   "apikey": "changeme",
   "packages": [
-    "google-chrome",
-    "lens-bin",
-    "postman-bin",
-    "telegram-bin",
-    "clion",
-    "clion-jre",
-    "datagrip",
-    "datagrip-jre",
-    "android-studio"
+    {
+      "name": "google-chrome"
+    },
+    {
+      "name": "tor-browser",
+      "run_before": "gpg --auto-key-locate nodefault,wkd --locate-keys torbrowser@torproject.org"
+    }
   ]
 }

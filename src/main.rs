@@ -4,10 +4,7 @@ mod utils;
 mod args;
 mod http;
 
-use args::Args;
-
 use crate::http::server::start_web;
-
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

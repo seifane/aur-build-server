@@ -20,7 +20,9 @@ The API can be protected using an API key specified in the `config.json` file.
 You can auth a request by including the API key in the `Authorization` header or with `?apikey=` as a query string.
 
 # TODO
-- [ ] Some stuff is still hardcoded (like repo name)
+- [x] Some stuff is still hardcoded (like repo name)
+- [x] Better logging of builds (stdout & stderr of last try)
+- [ ] Sometimes race conditions occurs when multiple makepkg processes are syncdeps, find a way to solve this
 - [ ] Include CRON-like system to try to rebuild package regularly
 - [ ] Handle command line arguments in docker image
 - [ ] More documentation on cmd args

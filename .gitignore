@@ -2,3 +2,4 @@ target/
 config/
 data/
 serve/
+logs/

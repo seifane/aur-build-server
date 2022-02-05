@@ -1,0 +1,10 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile-dev
+    entrypoint: sleep infinity
+    volumes:
+      - .:/app
+    ports:
+      - "8888:8888"

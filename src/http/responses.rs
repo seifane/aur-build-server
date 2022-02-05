@@ -7,6 +7,12 @@ pub struct BasicResultResponse {
 }
 
 #[derive(Serialize)]
+pub struct BasicErrorResponse {
+    pub ok: bool,
+    pub error: String,
+}
+
+#[derive(Serialize)]
 pub struct PackagesResponse<'a> {
     pub is_running: bool,
     pub commit_queued: bool,
