@@ -13,7 +13,7 @@ use crate::config::load_config;
 use crate::http::responses::{BasicErrorResponse, BasicResultResponse, PackagesResponse};
 use crate::http::auth_middleware::Auth;
 use crate::package_manager::PackageManager;
-use crate::utils::read_log;
+use crate::utils::log::read_log;
 
 
 async fn api_build_repo(data: web::Data<Mutex<PackageManager>>, req: HttpRequest) -> impl Responder {

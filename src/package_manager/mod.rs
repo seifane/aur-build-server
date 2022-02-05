@@ -6,15 +6,16 @@ use std::error::Error;
 use std::time::{Duration, SystemTime};
 use serde::Serialize;
 use crate::config::Config;
-use crate::utils::{build_repo, copy_package_to_repo, make_package};
+use crate::utils::{build_repo};
+use crate::utils::package::{copy_package_to_repo, make_package};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum PackageStatus {
-    QUEUED,
-    QUEUED_FORCE,
-    BUILDING,
-    BUILT,
-    FAILED,
+    Queued,
+    QueuedForce,
+    Building,
+    Built,
+    Failed,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -68,14 +69,14 @@ impl PackageManager {
                         let queue_package = locked_packages
                             .iter_mut()
                             .filter(|i|
-                                i.status == PackageStatus::QUEUED || i.status == PackageStatus::QUEUED_FORCE
+                                i.status == PackageStatus::Queued || i.status == PackageStatus::QueuedForce
                             ).next();
 
                         if queue_package.is_some() {
                             let mut pkg = queue_package.unwrap();
-                            force = pkg.status == PackageStatus::QUEUED_FORCE;
+                            force = pkg.status == PackageStatus::QueuedForce;
                             package = Some(pkg.clone());
-                            pkg.status = PackageStatus::BUILDING;
+                            pkg.status = PackageStatus::Building;
                         }
                     }
 
@@ -92,8 +93,8 @@ impl PackageManager {
                                 .filter(|i| i.name == package.name).next();
                             if queue_package.is_some() {
                                 let mut pkg = queue_package.unwrap();
-                                pkg.status = res.is_ok().then(|| PackageStatus::BUILT).unwrap_or(PackageStatus::FAILED);
-                                if pkg.status == PackageStatus::BUILT {
+                                pkg.status = res.is_ok().then(|| PackageStatus::Built).unwrap_or(PackageStatus::Failed);
+                                if pkg.status == PackageStatus::Built {
                                     copy_package_to_repo(pkg.name.clone()).unwrap();
                                 }
                             }
@@ -123,7 +124,7 @@ impl PackageManager {
                 Package {
                     name: package_config.name.clone(),
                     run_before: package_config.run_before.clone(),
-                    status: PackageStatus::QUEUED,
+                    status: PackageStatus::Queued,
                     time: SystemTime::now(),
                 }
             )
@@ -132,8 +133,8 @@ impl PackageManager {
 
     pub fn rebuild_packages(&mut self) {
         self.packages.lock().unwrap().iter_mut().for_each(|package| {
-            if package.status == PackageStatus::BUILT {
-                package.status = PackageStatus::QUEUED;
+            if package.status == PackageStatus::Built {
+                package.status = PackageStatus::Queued;
             }
         });
     }
@@ -141,8 +142,8 @@ impl PackageManager {
     pub fn rebuild_package(&mut self, package_name: String, force: bool) {
         self.packages.lock().unwrap().iter_mut().for_each(|package| {
             if package.name == package_name &&
-                (package.status == PackageStatus::BUILT || package.status == PackageStatus::FAILED) {
-                package.status = if force {PackageStatus::QUEUED_FORCE} else {PackageStatus::QUEUED}
+                (package.status == PackageStatus::Built || package.status == PackageStatus::Failed) {
+                package.status = if force {PackageStatus::QueuedForce } else {PackageStatus::Queued }
             }
         });
     }
@@ -181,8 +182,8 @@ impl PackageManager {
 
 fn get_pending_packages_count(packages: Arc<Mutex<Vec<Package>>>) -> usize {
     packages.lock().unwrap().iter().filter(|i| {
-        i.status == PackageStatus::BUILDING ||
-        i.status == PackageStatus::QUEUED ||
-        i.status == PackageStatus::QUEUED_FORCE
+        i.status == PackageStatus::Building ||
+        i.status == PackageStatus::Queued ||
+        i.status == PackageStatus::QueuedForce
     }).count()
 }

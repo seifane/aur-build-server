@@ -3,6 +3,7 @@ mod config;
 mod utils;
 mod args;
 mod http;
+mod errors;
 
 use crate::http::server::start_web;
 
