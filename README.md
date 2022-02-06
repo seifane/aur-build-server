@@ -32,6 +32,20 @@ docker-compose exec app /bin/bash
 
 and run your `cargo run` inside that container
 
+```bash
+USAGE:
+    aur-build-server [OPTIONS]
+
+OPTIONS:
+    -c, --config-path <CONFIG_PATH>    [default: config/config.json]
+    -h, --help                         Print help information
+    -l, --log-path <LOG_PATH>          [default: aur-build-server.log]
+    -L, --log-level <LOG_LEVEL>        [default: debug]
+    -p, --port <PORT>                  [default: 8888]
+    -s, --sign                         
+    -V, --version                      Print version information
+```
+
 ## Api
 
 - `GET /repo` Exposes the created Arch repository
@@ -59,10 +73,10 @@ You can auth a request by including the API key in the `Authorization` header or
 - [x] Better logging of builds (stdout & stderr of last try)
 - [x] Sometimes race conditions occurs when multiple makepkg processes are syncdeps, find a way to solve this
 - [x] Make use of a proper logging library
-- [ ] Restrict sudoers more in Dockerfile
+- [x] Restrict sudoers more in Dockerfile
+- [x] Handle command line arguments in docker image
+- [x] More documentation on cmd args
 - [ ] Include CRON-like system to try to rebuild package regularly
-- [ ] Handle command line arguments in docker image
-- [ ] More documentation on cmd args
 - [ ] Currently, packages are only rebuilt when the there's a new commit on the cloned AUR repository.
   That may not be the best method for all AUR packages.
   Include a way to force some packages to always be rebuilt.
