@@ -111,7 +111,7 @@ pub async fn start_web() -> std::io::Result<()> {
         fs::create_dir(serve_path).unwrap();
     }
 
-    println!("Starting server on {} ...", bind_addr);
+    info!("Starting server on {} ...", bind_addr);
 
     HttpServer::new(move || {
         App::new()

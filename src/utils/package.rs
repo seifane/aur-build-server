@@ -15,7 +15,7 @@ use crate::utils::log::write_logs;
 use crate::utils::pkgbuild::{parse_opt_deps, read_dependencies};
 
 pub fn copy_package_to_repo(repo_name: String) -> Result<(), Box<dyn Error>>{
-    println!("Copying packages for {}", repo_name);
+    debug!("Copying packages for {}", repo_name);
 
     let serve_path = Path::new("serve");
     if !serve_path.exists() {
@@ -62,7 +62,7 @@ pub fn build_package(package: &Package) -> std::result::Result<(), PackageBuildE
 
         let status_code = out.status;
         if status_code.code().unwrap() != 0 {
-            println!("Failed run_before for {} with code {}", package.name, status_code.code().unwrap());
+            error!("Failed run_before for {} with code {}", package.name, status_code.code().unwrap());
             return Err(PackageBuildError::new(status_code));
         }
     }
@@ -78,7 +78,7 @@ pub fn build_package(package: &Package) -> std::result::Result<(), PackageBuildE
 
     let status_code = out.status;
     if status_code.code().unwrap() != 0 {
-        println!("Failed makepkg for {} with code {}", package.name, status_code.code().unwrap());
+        error!("Failed makepkg for {} with code {}", package.name, status_code.code().unwrap());
         return Err(PackageBuildError::new(status_code));
     }
 
@@ -90,9 +90,8 @@ pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>
 
     {
         let mut guard = lock.lock().unwrap();
-        println!("Locked");
         while *guard {
-            println!("Waiting for lock to install dependencies");
+            debug!("Waiting for lock to install dependencies");
             guard = cvar.wait(guard).unwrap();
         }
         *guard = true;
@@ -105,24 +104,26 @@ pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>
         read_dependencies(package, "optdepends").unwrap()
     ));
 
-    println!("Getting dependencies : {}", deps.join(", "));
+    debug!("Getting dependencies : {}", deps.join(", "));
 
     let output = Command::new("sh")
         .arg("-c")
         .arg(format!("sudo pacman -Sy --noconfirm {}", deps.join(" "))).output().unwrap();
-    println!("{} {}", String::from_utf8(output.stdout).unwrap(), String::from_utf8(output.stderr).unwrap());
+
+    write_logs(package.name.as_str(), output.stdout.as_slice(), "stdout_deps").unwrap_or(());
+    write_logs(package.name.as_str(), output.stderr.as_slice(), "stderr_deps").unwrap_or(());
 
     *lock.lock().unwrap() = false;
     cvar.notify_one();
 }
 
 pub fn make_package(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condvar)>, force: bool) -> Result<(), Box<dyn std::error::Error>>  {
-    println!("Cloning {} ...", package.name);
+    info!("Cloning {} ...", package.name);
 
     let changed = clone_repo(package.name.as_str())?;
     if changed || force {
         install_dependencies(package, dependency_lock);
-        println!("Building {} ...", package.name);
+        info!("Building {} ...", package.name);
         build_package(package)?;
     }
     Ok(())

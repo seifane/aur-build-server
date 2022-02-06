@@ -60,7 +60,7 @@ impl PackageManager {
             let dependency_lock = self.dependency_lock.clone();
 
             self.workers_handles.push(thread::spawn(move || {
-                println!("Starting worker thread");
+                debug!("Starting worker thread");
                 while is_running.load(Ordering::SeqCst) {
                     let mut package = None;
                     let mut force = false;
@@ -83,7 +83,7 @@ impl PackageManager {
                     match package {
                         None => { thread::sleep(Duration::from_millis(1000)); }
                         Some(package) => {
-                            println!("Making package {}", package.name);
+                            info!("Making package {}", package.name);
 
                             let res = make_package(&package, Arc::clone(&dependency_lock), force);
 
@@ -99,11 +99,11 @@ impl PackageManager {
                                 }
                             }
 
-                            println!("Built package {}", package.name);
+                            info!("Built package {}", package.name);
                         }
                     }
                 }
-                println!("Stopping worker thread");
+                debug!("Stopping worker thread");
             }));
         }
     }
@@ -163,11 +163,10 @@ impl PackageManager {
 
             while get_pending_packages_count(packages.clone()) != 0
                 && is_running.load(Ordering::SeqCst) {
-                // println!("Waiting for packages to be built to commit ...");
                 thread::sleep(Duration::from_secs(3));
             }
 
-            println!("Committing packages to repo ...");
+            info!("Committing packages to repo ...");
             build_repo(repo_name).unwrap(); //TODO: handle
             commit_queued.store(false, Ordering::SeqCst);
         });

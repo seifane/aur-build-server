@@ -1,6 +1,8 @@
 [package]
 name = "aur-build-server"
-version = "0.1.0"
+description = "An AUR build server"
+authors = ["Seïfane Idouchach"]
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
@@ -13,6 +15,8 @@ tokio = { version = "1", features = ["full"] }
 futures = "0.3.19"
 simple-error = "0.2.3"
 
+log = "0.4.14"
+simplelog = { version = "^0.11.2", features = ["paris"] }
 git2 = "0.13.25"
 
 serde = { version = "1.0.133", features = ["derive"] }

@@ -47,6 +47,8 @@ to not wait for all packages in the queue to be built before committing.
   - `stderr`
   - `stdout_before`
   - `stderr_before`
+  - `stdout_deps`
+  - `stderr_deps`
 
 ### Api Authentication
 The API can be protected using an API key specified in the `config.json` file.
@@ -56,6 +58,7 @@ You can auth a request by including the API key in the `Authorization` header or
 - [x] Some stuff is still hardcoded (like repo name)
 - [x] Better logging of builds (stdout & stderr of last try)
 - [x] Sometimes race conditions occurs when multiple makepkg processes are syncdeps, find a way to solve this
+- [x] Make use of a proper logging library
 - [ ] Restrict sudoers more in Dockerfile
 - [ ] Include CRON-like system to try to rebuild package regularly
 - [ ] Handle command line arguments in docker image
@@ -64,4 +67,3 @@ You can auth a request by including the API key in the `Authorization` header or
   That may not be the best method for all AUR packages.
   Include a way to force some packages to always be rebuilt.
 - [ ] Probably better api than only GET routes ?
-- [ ] Make use of a proper logging library
