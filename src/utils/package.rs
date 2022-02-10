@@ -9,20 +9,21 @@ use clap::Parser;
 
 use crate::args::Args;
 use crate::errors::package_build_error::PackageBuildError;
+use crate::get_package_data;
 use crate::package_manager::Package;
 use crate::utils::git::clone_repo;
 use crate::utils::log::write_logs;
 use crate::utils::pkgbuild::{parse_opt_deps, read_dependencies};
 
-pub fn copy_package_to_repo(repo_name: String) -> Result<(), Box<dyn Error>>{
-    debug!("Copying packages for {}", repo_name);
+pub fn copy_package_to_repo(package_name: String) -> Result<(), Box<dyn Error>>{
+    debug!("Copying packages for {}", package_name);
 
     let serve_path = Path::new("serve");
     if !serve_path.exists() {
         fs::create_dir(serve_path).unwrap();
     }
 
-    let repo_data_str = format!("data/{}", repo_name).to_string();
+    let repo_data_str = format!("data/{}", package_name).to_string();
     let repo_data_path = Path::new(repo_data_str.as_str());
 
     for file in fs::read_dir(repo_data_path)? {
@@ -41,7 +42,7 @@ pub fn copy_package_to_repo(repo_name: String) -> Result<(), Box<dyn Error>>{
     Ok(())
 }
 
-pub fn build_package(package: &Package) -> std::result::Result<(), PackageBuildError> {
+pub fn run_makepkg(package_name: &String, install: bool) -> Result<(), PackageBuildError> {
     let args: Args = Args::parse();
 
     let mut cmd_args: String = String::new();
@@ -50,6 +51,28 @@ pub fn build_package(package: &Package) -> std::result::Result<(), PackageBuildE
         cmd_args += " --sign";
     }
 
+    if install {
+        cmd_args += " --install";
+    }
+
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(format!("cd data/{}; makepkg --syncdeps --clean --noconfirm{}", package_name, cmd_args)).output();
+
+    let out = output.unwrap();
+
+    write_logs(package_name.as_str(), out.stdout.as_slice(), "stdout").unwrap_or(());
+    write_logs(package_name.as_str(), out.stderr.as_slice(), "stderr").unwrap_or(());
+
+    let status_code = out.status;
+    if status_code.code().unwrap() != 0 {
+        error!("Failed makepkg for {} with code {}", package_name, status_code.code().unwrap());
+        return Err(PackageBuildError::new(status_code));
+    }
+    Ok(())
+}
+
+pub fn build_package(package: &Package) -> std::result::Result<(), PackageBuildError> {
     if package.run_before.is_some() {
         let pre_run_output = Command::new("sh")
             .arg("-c")
@@ -67,21 +90,17 @@ pub fn build_package(package: &Package) -> std::result::Result<(), PackageBuildE
         }
     }
 
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(format!("cd data/{}; makepkg --syncdeps --clean --noconfirm{}", package.name, cmd_args)).output();
+    run_makepkg(&package.name, false)?;
 
-    let out = output.unwrap();
+    Ok(())
+}
 
-    write_logs(package.name.as_str(), out.stdout.as_slice(), "stdout").unwrap_or(());
-    write_logs(package.name.as_str(), out.stderr.as_slice(), "stderr").unwrap_or(());
-
-    let status_code = out.status;
-    if status_code.code().unwrap() != 0 {
-        error!("Failed makepkg for {} with code {}", package.name, status_code.code().unwrap());
-        return Err(PackageBuildError::new(status_code));
+pub fn install_aur_deps(aur_deps: Vec<String>) -> Result<(), Box<dyn Error>>{
+    for aur_dep in aur_deps {
+        clone_repo(&aur_dep)?;
+        run_makepkg(&aur_dep, true)?;
+        copy_package_to_repo(aur_dep);
     }
-
     Ok(())
 }
 
@@ -104,14 +123,32 @@ pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>
         read_dependencies(package, "optdepends").unwrap()
     ));
 
-    debug!("Getting dependencies : {}", deps.join(", "));
+    let mut aur_deps = Vec::new();
 
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(format!("sudo pacman -Sy --noconfirm {}", deps.join(" "))).output().unwrap();
+    deps.retain(|dep|  {
+        let res = get_package_data(dep).unwrap();
+        if res.result_count == 1 {
+            aur_deps.push(dep.clone());
+            return false;
+        }
+        return true;
+    });
 
-    write_logs(package.name.as_str(), output.stdout.as_slice(), "stdout_deps").unwrap_or(());
-    write_logs(package.name.as_str(), output.stderr.as_slice(), "stderr_deps").unwrap_or(());
+    if aur_deps.len() > 0 {
+        debug!("Installing aur dependencies {}", aur_deps.join(", "));
+        install_aur_deps(aur_deps);
+    }
+
+    if deps.len() > 0 {
+        debug!("Installing dependencies : {}", deps.join(", "));
+
+        let output = Command::new("sh")
+            .arg("-c")
+            .arg(format!("sudo pacman -Sy --noconfirm {}", deps.join(" "))).output().unwrap();
+
+        write_logs(package.name.as_str(), output.stdout.as_slice(), "stdout_deps").unwrap_or(());
+        write_logs(package.name.as_str(), output.stderr.as_slice(), "stderr_deps").unwrap_or(());
+    }
 
     *lock.lock().unwrap() = false;
     cvar.notify_one();
@@ -120,7 +157,7 @@ pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>
 pub fn make_package(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condvar)>, force: bool) -> Result<(), Box<dyn std::error::Error>>  {
     info!("Cloning {} ...", package.name);
 
-    let changed = clone_repo(package.name.as_str())?;
+    let changed = clone_repo(&package.name)?;
     if changed || force {
         install_dependencies(package, dependency_lock);
         info!("Building {} ...", package.name);

@@ -7,7 +7,7 @@ pub fn get_current_commit_id(repo: &Repository) -> Result<String, git2::Error> {
         .into_commit().map_err(|_| git2::Error::from_str("Couldn't find commit"))?.id().to_string())
 }
 
-pub fn clone_repo(repo_name: &str) -> Result<bool, Box<dyn std::error::Error>> {
+pub fn clone_repo(repo_name: &String) -> Result<bool, Box<dyn std::error::Error>> {
     let url = format!("https://aur.archlinux.org/{}.git", repo_name);
     let path = format!("data/{}", repo_name);
     if Path::new(path.as_str()).exists() {

@@ -76,7 +76,10 @@ You can auth a request by including the API key in the `Authorization` header or
 - [x] Restrict sudoers more in Dockerfile
 - [x] Handle command line arguments in docker image
 - [x] More documentation on cmd args
+- [x] Support packages that have AUR packages as deps
 - [ ] Include CRON-like system to try to rebuild package regularly
+- [ ] Handle config hot reloading
+- [ ] Support patching repos
 - [ ] Currently, packages are only rebuilt when the there's a new commit on the cloned AUR repository.
   That may not be the best method for all AUR packages.
   Include a way to force some packages to always be rebuilt.

@@ -8,6 +8,7 @@ pub mod log;
 pub mod package;
 pub mod git;
 pub mod pkgbuild;
+pub mod aurweb;
 
 pub fn parse_log_level_from_string(level: String) -> LevelFilter {
     match level.as_str() {

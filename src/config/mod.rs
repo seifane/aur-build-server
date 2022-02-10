@@ -13,6 +13,7 @@ pub struct Config {
     pub repo_name: Option<String>,
     pub apikey: Option<String>,
     pub packages: Vec<PackageConfig>,
+    pub rebuild_time: Option<u64>,
 }
 
 pub fn load_config(path: String) -> Config {
