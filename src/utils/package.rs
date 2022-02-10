@@ -15,7 +15,7 @@ use crate::utils::git::clone_repo;
 use crate::utils::log::write_logs;
 use crate::utils::pkgbuild::{parse_opt_deps, read_dependencies};
 
-pub fn copy_package_to_repo(package_name: String) -> Result<(), Box<dyn Error>>{
+pub fn copy_package_to_repo(package_name: &String) -> Result<(), Box<dyn Error>>{
     debug!("Copying packages for {}", package_name);
 
     let serve_path = Path::new("serve");
@@ -40,6 +40,14 @@ pub fn copy_package_to_repo(package_name: String) -> Result<(), Box<dyn Error>>{
     }
 
     Ok(())
+}
+
+fn is_package_installed(package_name: &String) -> bool {
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(format!("pacman -Q {}", package_name)).output().unwrap();
+
+    output.status.success()
 }
 
 pub fn run_makepkg(package_name: &String, install: bool) -> Result<(), PackageBuildError> {
@@ -72,7 +80,8 @@ pub fn run_makepkg(package_name: &String, install: bool) -> Result<(), PackageBu
     Ok(())
 }
 
-pub fn build_package(package: &Package) -> std::result::Result<(), PackageBuildError> {
+pub fn build_package(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condvar)>) -> std::result::Result<(), PackageBuildError> {
+    //install_dependencies(package, dependency_lock)?;
     if package.run_before.is_some() {
         let pre_run_output = Command::new("sh")
             .arg("-c")
@@ -99,22 +108,13 @@ pub fn install_aur_deps(aur_deps: Vec<String>) -> Result<(), Box<dyn Error>>{
     for aur_dep in aur_deps {
         clone_repo(&aur_dep)?;
         run_makepkg(&aur_dep, true)?;
-        copy_package_to_repo(aur_dep)?;
+        copy_package_to_repo(&aur_dep)?;
     }
     Ok(())
 }
 
 pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condvar)>) -> Result<(), Box<dyn Error>> {
     let &(ref lock, ref cvar) = &*dependency_lock;
-
-    {
-        let mut guard = lock.lock().unwrap();
-        while *guard {
-            debug!("Waiting for lock to install dependencies");
-            guard = cvar.wait(guard).unwrap();
-        }
-        *guard = true;
-    }
 
     let mut deps = read_dependencies(package, "depends").unwrap();
     deps.extend(read_dependencies(package, "makedepends").unwrap());
@@ -139,6 +139,15 @@ pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>
         install_aur_deps(aur_deps)?;
     }
 
+    {
+        let mut guard = lock.lock().unwrap();
+        while *guard {
+            debug!("Waiting for lock to install dependencies");
+            guard = cvar.wait(guard).unwrap();
+        }
+        *guard = true;
+    }
+
     if deps.len() > 0 {
         debug!("Installing dependencies : {}", deps.join(", "));
 
@@ -160,9 +169,8 @@ pub fn make_package(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condva
 
     let changed = clone_repo(&package.name)?;
     if changed || force {
-        install_dependencies(package, dependency_lock)?;
         info!("Building {} ...", package.name);
-        build_package(package)?;
+        build_package(package, dependency_lock)?;
     }
     Ok(())
 }
