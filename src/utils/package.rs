@@ -99,12 +99,12 @@ pub fn install_aur_deps(aur_deps: Vec<String>) -> Result<(), Box<dyn Error>>{
     for aur_dep in aur_deps {
         clone_repo(&aur_dep)?;
         run_makepkg(&aur_dep, true)?;
-        copy_package_to_repo(aur_dep);
+        copy_package_to_repo(aur_dep)?;
     }
     Ok(())
 }
 
-pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condvar)>) {
+pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condvar)>) -> Result<(), Box<dyn Error>> {
     let &(ref lock, ref cvar) = &*dependency_lock;
 
     {
@@ -136,7 +136,7 @@ pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>
 
     if aur_deps.len() > 0 {
         debug!("Installing aur dependencies {}", aur_deps.join(", "));
-        install_aur_deps(aur_deps);
+        install_aur_deps(aur_deps)?;
     }
 
     if deps.len() > 0 {
@@ -152,14 +152,15 @@ pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>
 
     *lock.lock().unwrap() = false;
     cvar.notify_one();
+    Ok(())
 }
 
-pub fn make_package(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condvar)>, force: bool) -> Result<(), Box<dyn std::error::Error>>  {
+pub fn make_package(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condvar)>, force: bool) -> Result<(), Box<dyn Error>>  {
     info!("Cloning {} ...", package.name);
 
     let changed = clone_repo(&package.name)?;
     if changed || force {
-        install_dependencies(package, dependency_lock);
+        install_dependencies(package, dependency_lock)?;
         info!("Building {} ...", package.name);
         build_package(package)?;
     }
