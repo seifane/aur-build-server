@@ -1,7 +1,7 @@
 use std::io;
 use regex::Regex;
-use crate::package_manager::Package;
 use crate::utils::file::read_file_to_string;
+use crate::utils::package_data::Package;
 
 pub fn read_dependencies(package: &Package, dependency_type: &str) -> Result<Vec<String>, io::Error> {
     let path = format!("data/{}/PKGBUILD", package.name);

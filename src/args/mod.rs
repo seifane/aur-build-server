@@ -12,7 +12,7 @@ pub struct Args {
     #[clap(short, long, default_value_t = String::from("config/config.json"))]
     pub config_path: String,
 
-    #[clap(short = 'L', long, default_value_t = String::from("debug"))]
+    #[clap(short = 'L', long, default_value_t = String::from("info"))]
     pub log_level: String,
 
     #[clap(short = 'l', long, default_value_t = String::from("aur-build-server.log"))]

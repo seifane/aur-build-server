@@ -1,5 +1,5 @@
 use serde::{Serialize};
-use crate::package_manager::Package;
+use crate::utils::package_data::Package;
 
 #[derive(Serialize)]
 pub struct BasicResultResponse {
@@ -13,8 +13,8 @@ pub struct BasicErrorResponse {
 }
 
 #[derive(Serialize)]
-pub struct PackagesResponse<'a> {
+pub struct PackagesResponse {
     pub is_running: bool,
     pub commit_queued: bool,
-    pub packages: &'a Vec<Package>,
+    pub packages: Vec<Package>,
 }

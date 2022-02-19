@@ -1,37 +1,25 @@
+use std::borrow::{Borrow, BorrowMut};
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use std::error::Error;
 use std::time::{Duration, SystemTime};
-use serde::Serialize;
+use indextree::{Arena, NodeId};
 use crate::config::Config;
 use crate::utils::{build_repo};
 use crate::utils::package::{copy_package_to_repo, make_package};
+use crate::utils::package_data::{Package, PackageStatus};
+use crate::utils::tree::{get_queued_branch, insert_package, print_tree};
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub enum PackageStatus {
-    Queued,
-    QueuedForce,
-    Building,
-    Built,
-    Failed,
-}
 
-#[derive(Debug, Clone, Serialize)]
-pub struct Package {
-    pub name: String,
-    pub run_before: Option<String>,
-    pub status: PackageStatus,
-    pub time: SystemTime,
-}
-
+#[derive(Clone)]
 pub struct PackageManager {
     pub is_running: Arc<AtomicBool>,
     pub commit_queued: Arc<AtomicBool>,
     pub dependency_lock: Arc<(Mutex<bool>, Condvar)>,
-    pub packages: Arc<Mutex<Vec<Package>>>,
-    workers_handles: Vec<JoinHandle<()>>,
+    pub package_tree: Arc<Mutex<Arena<Package>>>,
+    workers_handles: Arc<Mutex<Vec<JoinHandle<()>>>>,
     config: Config,
 }
 
@@ -41,84 +29,75 @@ impl PackageManager {
             is_running: Arc::new(AtomicBool::new(false)),
             commit_queued: Arc::new(AtomicBool::new(false)),
             dependency_lock: Arc::new((Mutex::new(false), Condvar::new())),
-            packages: Arc::new(Mutex::new(Vec::new())),
-            workers_handles: vec![],
+            package_tree: Arc::new(Mutex::new(Arena::new())),
+            workers_handles: Arc::new(Mutex::new(vec![])),
             config,
         }
     }
 
-    pub fn cron_thread(packages: Arc<Mutex<Vec<Package>>>, config: Config) {
-        if config.rebuild_time.is_none() {
-            info!("Not starting automatic refresh ...");
-            return;
-        }
-        loop {
-            std::thread::sleep(Duration::from_secs(config.rebuild_time.unwrap()));
-            info!("Rebuilding packages ...");
-            packages.lock().unwrap().iter_mut().for_each(|package| {
-                if package.status == PackageStatus::Built {
-                    package.status = PackageStatus::Queued;
-                }
-            });
-        }
-    }
+    pub fn worker_thread(&mut self) {
+        info!("Starting worker thread");
+        while self.is_running.load(Ordering::SeqCst) {
+            let mut tree = self.package_tree.lock().unwrap();
+            let branch: Option<NodeId> = get_queued_branch(tree.borrow());
 
-    pub fn start_cron_thread(&mut self) {
-        let packages = self.packages.clone();
-        let config = self.config.clone();
-        std::thread::spawn(|| {
-            PackageManager::cron_thread(packages, config);
-        });
-    }
-
-    pub fn worker_thread(
-        packages: Arc<Mutex<Vec<Package>>>,
-        is_running: Arc<AtomicBool>,
-        dependency_lock: Arc<(Mutex<bool>, Condvar)>
-    ) {
-        while is_running.load(Ordering::SeqCst) {
-            let mut package = None;
-            let mut force = false;
-            {
-                let mut locked_packages = packages.lock().unwrap();
-                let queue_package = locked_packages
-                    .iter_mut()
-                    .filter(|i|
-                        i.status == PackageStatus::Queued || i.status == PackageStatus::QueuedForce
-                    ).next();
-
-                if queue_package.is_some() {
-                    let mut pkg = queue_package.unwrap();
-                    force = pkg.status == PackageStatus::QueuedForce;
-                    package = Some(pkg.clone());
-                    pkg.status = PackageStatus::Building;
-                }
-            }
-
-            match package {
-                None => { thread::sleep(Duration::from_millis(1000)); }
-                Some(package) => {
-                    info!("Making package {}", package.name);
-
-                    let res = make_package(&package, Arc::clone(&dependency_lock), force);
-
-                    let mut locked_packages = packages.lock().unwrap();
-                    let queue_package = locked_packages
-                        .iter_mut()
-                        .filter(|i| i.name == package.name).next();
-                    if queue_package.is_some() {
-                        let mut pkg = queue_package.unwrap();
-                        pkg.status = res.is_ok().then(|| PackageStatus::Built).unwrap_or(PackageStatus::Failed);
-                        if pkg.status == PackageStatus::Built {
-                            copy_package_to_repo(pkg.name.clone()).unwrap();
-                        }
-                    }
-
-                    info!("Built package {}", package.name);
+            match branch {
+                None => {
+                    drop(tree);
+                    thread::sleep(Duration::from_millis(1000));
+                },
+                Some(node_id) => {
+                    let node = tree.get_mut(node_id).unwrap().get_mut();
+                    node.status = PackageStatus::Building;
+                    drop(tree);
+                    self.process_package_node(node_id);
                 }
             }
         }
+        info!("Stopping worker thread");
     }
+
+    fn process_package_node(&mut self, node_id: NodeId) {
+        let mut node = self.package_tree.lock().unwrap().get(node_id).unwrap().get().clone();
+        let mut child = self.package_tree.lock().unwrap().get(node_id).unwrap().first_child().clone();
+
+        self.process_package(&mut node, child.is_some());
+
+        while child.is_some() {
+            let arena = self.package_tree.lock().unwrap();
+
+            let child_id = child.unwrap();
+            let node = arena.get(child_id).unwrap();
+            let do_install = node.first_child().is_some();
+            let mut package = node.get().clone();
+            child = node.next_sibling();
+            drop(arena);
+
+            self.process_package(&mut package, do_install);
+        }
+    }
+
+    fn process_package(&mut self, package: &mut Package, do_install: bool) {
+        let force = package.status == PackageStatus::QueuedForce;
+        package.status = PackageStatus::Building;
+        insert_package(package, self.package_tree.lock().unwrap().borrow_mut());
+
+        info!("Making package {} install {}", package.name, do_install);
+
+        let res = make_package(package, self.dependency_lock.clone(), force);
+
+        package.status = res.is_ok().then(|| PackageStatus::Built).unwrap_or(PackageStatus::Failed);
+
+        insert_package(package, self.package_tree.lock().unwrap().borrow_mut());
+        if package.status == PackageStatus::Built {
+            info!("Built package {}", package.name);
+            copy_package_to_repo(&package.name).unwrap();
+        } else {
+            error!("Failed to build package {}", package.name);
+        }
+
+    }
+
 
     pub fn start_workers(&mut self) {
         if self.is_running.load(Ordering::SeqCst) {
@@ -127,16 +106,15 @@ impl PackageManager {
 
         self.is_running.store(true, Ordering::SeqCst);
 
-        for _ in 0..5 {
-            let packages = self.packages.clone();
-            let is_running = self.is_running.clone();
-            let dependency_lock = self.dependency_lock.clone();
+        let workers_count = self.config.workers_count.unwrap_or(5);
 
-            self.workers_handles.push(thread::spawn(move || {
-                info!("Starting worker thread");
-                PackageManager::worker_thread(packages, is_running, dependency_lock);
-                info!("Stopping worker thread");
-            }));
+        info!("Spawning {} workers", workers_count);
+
+        for _ in 0..workers_count {
+            let mut cloned_self = self.clone();
+            self.workers_handles.lock().unwrap().push(
+                thread::spawn(move || cloned_self.worker_thread())
+            );
         }
     }
 
@@ -145,7 +123,7 @@ impl PackageManager {
 
         self.is_running.store(false, Ordering::SeqCst);
 
-        while let Some(thread) = self.workers_handles.pop() {
+        while let Some(thread) = self.workers_handles.lock().unwrap().pop() {
             thread.join().unwrap();
         }
 
@@ -153,74 +131,52 @@ impl PackageManager {
     }
 
     pub fn load_packages(&mut self) {
-        if self.packages.lock().unwrap().len() > 0 {
+        if !self.package_tree.lock().unwrap().is_empty() {
             return;
         }
 
         self.config.packages.iter().for_each(|package_config| {
-            self.packages.lock().unwrap().push(
-                Package {
-                    name: package_config.name.clone(),
-                    run_before: package_config.run_before.clone(),
-                    status: PackageStatus::Queued,
-                    time: SystemTime::now(),
-                }
-            )
+            let package = Package {
+                name: package_config.name.clone(),
+                run_before: package_config.run_before.clone(),
+                status: PackageStatus::Queued,
+                last_build_commit: None,
+                time: SystemTime::now(),
+            };
+            insert_package(&package, self.package_tree.lock().unwrap().borrow_mut());
         });
+        println!("Loaded packages");
+        print_tree(self.package_tree.lock().unwrap().borrow());
     }
 
     pub fn rebuild_packages(&mut self) {
-        self.packages.lock().unwrap().iter_mut().for_each(|package| {
+        let mut tree = self.package_tree.lock().unwrap();
+
+        for node in tree.iter_mut() {
+            let package = node.get_mut();
             if package.status == PackageStatus::Built {
                 package.status = PackageStatus::Queued;
             }
-        });
+        }
     }
 
     pub fn rebuild_package(&mut self, package_name: String, force: bool) {
-        self.packages.lock().unwrap().iter_mut().for_each(|package| {
-            if package.name == package_name &&
-                (package.status == PackageStatus::Built || package.status == PackageStatus::Failed) {
-                package.status = if force {PackageStatus::QueuedForce } else {PackageStatus::Queued }
-            }
-        });
-    }
+        let mut tree = self.package_tree.lock().unwrap();
 
-    pub fn queue_commit(&mut self) {
-        if self.commit_queued.load(Ordering::SeqCst) {
-            return;
+        for node in tree.iter_mut() {
+            let package = node.get_mut();
+            if package.name == package_name {
+                if package.status != PackageStatus::Built {
+                    warn!("Not rebuilding package {} because it's not built yet", package.name);
+                    return;
+                }
+                package.status = if force { PackageStatus::QueuedForce } else { PackageStatus::Queued };
+            }
         }
-
-        let packages = self.packages.clone();
-        let commit_queued = self.commit_queued.clone();
-        let is_running = self.is_running.clone();
-        let repo_name = self.config.repo_name.clone().unwrap_or(String::from("aurbuild"));
-
-        thread::spawn(move || {
-            commit_queued.store(true, Ordering::SeqCst);
-
-            while get_pending_packages_count(packages.clone()) != 0
-                && is_running.load(Ordering::SeqCst) {
-                thread::sleep(Duration::from_secs(3));
-            }
-
-            info!("Committing packages to repo ...");
-            build_repo(repo_name).unwrap(); //TODO: handle
-            commit_queued.store(false, Ordering::SeqCst);
-        });
     }
 
-
-    pub fn commit_now(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn commit(&mut self) -> Result<(), Box<dyn Error>> {
         build_repo(self.config.repo_name.clone().unwrap_or(String::from("aurbuild")))?;
         Ok(())
     }
-}
-
-fn get_pending_packages_count(packages: Arc<Mutex<Vec<Package>>>) -> usize {
-    packages.lock().unwrap().iter().filter(|i| {
-        i.status == PackageStatus::Building ||
-        i.status == PackageStatus::Queued ||
-        i.status == PackageStatus::QueuedForce
-    }).count()
 }

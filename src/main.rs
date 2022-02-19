@@ -19,10 +19,6 @@ use crate::utils::parse_log_level_from_string;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-
-    let res = get_package_data(&String::from("google-chrome"));
-    println!("res {:?}", res.unwrap());
-
     let args: Args = Args::parse();
     let level_filter = parse_log_level_from_string(args.log_level);
     CombinedLogger::init(
