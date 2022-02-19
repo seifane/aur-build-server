@@ -42,14 +42,6 @@ pub fn copy_package_to_repo(package_name: &String) -> Result<(), Box<dyn Error>>
     Ok(())
 }
 
-fn is_package_installed(package_name: &String) -> bool {
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(format!("pacman -Q {}", package_name)).output().unwrap();
-
-    output.status.success()
-}
-
 pub fn run_makepkg(package_name: &String, install: bool) -> Result<(), PackageBuildError> {
     let args: Args = Args::parse();
 
@@ -62,6 +54,8 @@ pub fn run_makepkg(package_name: &String, install: bool) -> Result<(), PackageBu
     if install {
         cmd_args += " --install";
     }
+
+    debug!("Running makepkg for {}", package_name);
 
     let output = Command::new("sh")
         .arg("-c")
@@ -77,12 +71,15 @@ pub fn run_makepkg(package_name: &String, install: bool) -> Result<(), PackageBu
         error!("Failed makepkg for {} with code {}", package_name, status_code.code().unwrap());
         return Err(PackageBuildError::new(status_code));
     }
+    debug!("Ok makepkg for {}", package_name);
+
     Ok(())
 }
 
 pub fn build_package(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condvar)>) -> std::result::Result<(), PackageBuildError> {
     install_dependencies(package, dependency_lock).unwrap();
     if package.run_before.is_some() {
+        debug!("Running run_before for {}", package.name);
         let pre_run_output = Command::new("sh")
             .arg("-c")
             .arg(package.run_before.as_ref().unwrap()).output();
@@ -104,17 +101,8 @@ pub fn build_package(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condv
     Ok(())
 }
 
-/*pub fn install_aur_deps(aur_deps: Vec<String>) -> Result<(), Box<dyn Error>>{
-    for aur_dep in aur_deps {
-        clone_repo(&aur_dep)?;
-        run_makepkg(&aur_dep, true)?;
-        copy_package_to_repo(&aur_dep)?;
-    }
-    Ok(())
-}*/
-
 pub fn get_dependencies(package: &Package) -> Vec<String> {
-    println!("Getting deps for {}", package.name);
+    debug!("Getting dependencies for {}", package.name);
     clone_repo(&package.name).unwrap();
     let mut deps = read_dependencies(package, "depends").unwrap();
     deps.extend(read_dependencies(package, "makedepends").unwrap());
@@ -148,21 +136,13 @@ pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>
         read_dependencies(package, "optdepends")?
     ));
 
-    // let mut aur_deps = Vec::new();
-
     deps.retain(|dep|  {
         let res = get_package_data(dep).unwrap();
         if res.result_count == 1 {
-            // aur_deps.push(dep.clone());
             return false;
         }
         return true;
     });
-
-    // if aur_deps.len() > 0 {
-    //     debug!("Installing aur dependencies {}", aur_deps.join(", "));
-    //     install_aur_deps(aur_deps)?;
-    // }
 
     if deps.len() > 0 {
         {
@@ -189,11 +169,18 @@ pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>
     Ok(())
 }
 
-pub fn make_package(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condvar)>, force: bool) -> Result<(), Box<dyn Error>>  {
+pub fn make_package(package: &mut Package, dependency_lock: Arc<(Mutex<bool>, Condvar)>, force: bool) -> Result<(), Box<dyn Error>>  {
     info!("Cloning {} ...", package.name);
 
     let commit_id = clone_repo(&package.name)?;
+
+    if package.last_build_commit.is_some() && package.last_build_commit.clone().unwrap() == commit_id && !force {
+        info!("Skipping {}, same commit", package.name);
+        return Ok(());
+    }
+
     info!("Building {} ...", package.name);
     build_package(package, dependency_lock)?;
+    package.last_build_commit = Some(commit_id);
     Ok(())
 }

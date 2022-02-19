@@ -54,15 +54,14 @@ OPTIONS:
 - `GET /api/packages/rebuild/{package_name}` Launches a rebuild for the specified package
 - `GET /api/start` Starts the workers to process packages
 - `GET /api/stop` Stops the workers processing packages
-- `GET /api/commit` Pull built packages that where not yet included in the repository. `?now=1` can be added to commit 
-to not wait for all packages in the queue to be built before committing.
+- `GET /api/commit` Pull built packages that where not yet included in the repository.
 - `GET /api/logs/:package_name/:suffix` Get build logs for a given `package_name`. Valid options for suffix are
-  - `stdout`
-  - `stderr`
-  - `stdout_before`
-  - `stderr_before`
-  - `stdout_deps`
-  - `stderr_deps`
+  - `stdout` : stdout output of makepkg
+  - `stderr` : stderr output of makepkg 
+  - `stdout_before` : stdout output of run_before command if any
+  - `stderr_before` : stderr output of run_before command if any
+  - `stdout_deps` : stdout output of pacman install of dependencies
+  - `stderr_deps` : stderr output of pacman install of dependencies
 
 ### Api Authentication
 The API can be protected using an API key specified in the `config.json` file.
@@ -78,8 +77,8 @@ You can auth a request by including the API key in the `Authorization` header or
 - [x] More documentation on cmd args
 - [x] Support packages that have AUR packages as deps
 - [ ] Include CRON-like system to try to rebuild package regularly
-- [ ] Handle config hot reloading
 - [ ] Support patching repos
+- [ ] Handle config hot reloading
 - [ ] Currently, packages are only rebuilt when the there's a new commit on the cloned AUR repository.
   That may not be the best method for all AUR packages.
   Include a way to force some packages to always be rebuilt.

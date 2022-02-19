@@ -4,16 +4,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use std::error::Error;
-use std::ops::{Deref, DerefMut};
 use std::time::{Duration, SystemTime};
 use indextree::{Arena, NodeId};
 use crate::config::Config;
-use crate::{insert_package, print_dep_tree};
 use crate::utils::{build_repo};
 use crate::utils::package::{copy_package_to_repo, make_package};
-use crate::utils::package_data::{get_queued_branch, Package, PackageStatus};
-use crate::utils::package_data::PackageStatus::Queued;
-use rayon::prelude::*;
+use crate::utils::package_data::{Package, PackageStatus};
+use crate::utils::tree::{get_queued_branch, insert_package, print_tree};
 
 
 #[derive(Clone)]
@@ -87,7 +84,7 @@ impl PackageManager {
 
         info!("Making package {} install {}", package.name, do_install);
 
-        let res = make_package(&package, self.dependency_lock.clone(), force);
+        let res = make_package(package, self.dependency_lock.clone(), force);
 
         package.status = res.is_ok().then(|| PackageStatus::Built).unwrap_or(PackageStatus::Failed);
 
@@ -109,8 +106,11 @@ impl PackageManager {
 
         self.is_running.store(true, Ordering::SeqCst);
 
-        //TODO: configurable thread numbers
-        for _ in 0..5 {
+        let workers_count = self.config.workers_count.unwrap_or(5);
+
+        info!("Spawning {} workers", workers_count);
+
+        for _ in 0..workers_count {
             let mut cloned_self = self.clone();
             self.workers_handles.lock().unwrap().push(
                 thread::spawn(move || cloned_self.worker_thread())
@@ -145,29 +145,31 @@ impl PackageManager {
             };
             insert_package(&package, self.package_tree.lock().unwrap().borrow_mut());
         });
-        print_dep_tree(self.package_tree.lock().unwrap().borrow());
+        println!("Loaded packages");
+        print_tree(self.package_tree.lock().unwrap().borrow());
     }
 
     pub fn rebuild_packages(&mut self) {
         let mut tree = self.package_tree.lock().unwrap();
 
-        (*tree).borrow_mut()
-            .par_iter_mut()
-            .map(|ref mut i| (i.get_mut().status = PackageStatus::Queued));
-
-        // for node in tree.iter() {
-        //     let mut package = node.get().clone();
-        //     package.status = PackageStatus::Queued;
-        //     insert_package(&package, &mut tree);
-        // }
+        for node in tree.iter_mut() {
+            let package = node.get_mut();
+            if package.status == PackageStatus::Built {
+                package.status = PackageStatus::Queued;
+            }
+        }
     }
 
     pub fn rebuild_package(&mut self, package_name: String, force: bool) {
-        let tree = self.package_tree.lock().unwrap();
+        let mut tree = self.package_tree.lock().unwrap();
 
-        for node in tree.iter() {
-            let package = node.borrow().get_mut();
+        for node in tree.iter_mut() {
+            let package = node.get_mut();
             if package.name == package_name {
+                if package.status != PackageStatus::Built {
+                    warn!("Not rebuilding package {} because it's not built yet", package.name);
+                    return;
+                }
                 package.status = if force { PackageStatus::QueuedForce } else { PackageStatus::Queued };
             }
         }
@@ -177,12 +179,4 @@ impl PackageManager {
         build_repo(self.config.repo_name.clone().unwrap_or(String::from("aurbuild")))?;
         Ok(())
     }
-}
-
-fn get_pending_packages_count(packages: Arc<Mutex<Vec<Package>>>) -> usize {
-    packages.lock().unwrap().iter().filter(|i| {
-        i.status == PackageStatus::Building ||
-            i.status == PackageStatus::Queued ||
-            i.status == PackageStatus::QueuedForce
-    }).count()
 }

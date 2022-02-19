@@ -1,10 +1,8 @@
 use std::{fs};
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
 use actix_web::{App, HttpServer, web, HttpResponse, HttpRequest, Responder};
-use actix_web::web::Query;
 use clap::Parser;
 use crate::args::Args;
 
@@ -47,18 +45,15 @@ async fn api_get_packages(data: web::Data<Mutex<PackageManager>>) -> impl Respon
     })
 }
 
-async fn api_commit(data: web::Data<Mutex<PackageManager>>, req: HttpRequest) -> HttpResponse {
+async fn api_commit(data: web::Data<Mutex<PackageManager>>) -> HttpResponse {
     let mut package_manager = data.lock().unwrap();
-    let qs = Query::<HashMap<String, String>>::from_query(req.query_string()).unwrap();
-    if qs.contains_key("now") {
-        let commit_res = package_manager.commit();
-        if commit_res.is_err() {
-            return HttpResponse::InternalServerError()
-                .json(BasicErrorResponse {
-                    ok: false,
-                    error: commit_res.unwrap_err().to_string()
-                });
-        }
+    let commit_res = package_manager.commit();
+    if commit_res.is_err() {
+        return HttpResponse::InternalServerError()
+            .json(BasicErrorResponse {
+                ok: false,
+                error: commit_res.unwrap_err().to_string()
+            });
     }
     HttpResponse::Ok().json(BasicResultResponse {
         ok: true

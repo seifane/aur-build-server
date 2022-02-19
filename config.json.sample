@@ -1,5 +1,6 @@
 {
   "repo_name": "aurbuild",
+  "workers_count": 5,
   "apikey": "changeme",
   "packages": [
     {

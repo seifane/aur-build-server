@@ -11,6 +11,7 @@ pub struct PackageConfig {
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
     pub repo_name: Option<String>,
+    pub workers_count: Option<u64>,
     pub apikey: Option<String>,
     pub packages: Vec<PackageConfig>,
     pub rebuild_time: Option<u64>,

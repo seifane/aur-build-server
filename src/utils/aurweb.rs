@@ -24,7 +24,7 @@ pub struct PackageDataResponse {
 
 pub fn get_package_data(package_name: &String) -> reqwest::Result<PackageDataResponse> {
     let url = format!("https://aur.archlinux.org/rpc/?v=5&type=info&arg[]={}", package_name);
-    println!("request url {}", url);
+    debug!("Getting AUR package data for {}", package_name);
     reqwest::blocking::get(
         url
     )?.json::<PackageDataResponse>()
