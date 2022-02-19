@@ -1,6 +1,5 @@
 use std::{fs};
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
@@ -27,19 +26,24 @@ async fn api_build_repo(data: web::Data<Mutex<PackageManager>>, req: HttpRequest
         package_manager.rebuild_packages();
     }
 
-    package_manager.queue_commit();
     HttpResponse::Ok().json(BasicResultResponse {
         ok: true
     })
 }
 
 async fn api_get_packages(data: web::Data<Mutex<PackageManager>>) -> impl Responder {
-    let package_manager = data.lock().expect("package_manager");
-    let x = package_manager.packages.lock().unwrap();
+    let package_manager = data.lock().unwrap();
+
+    let x = package_manager.package_tree.lock().unwrap();
+
+    let mut packages = Vec::new();
+    for item in x.iter() {
+        packages.push(item.get().clone());
+    }
     HttpResponse::Ok().json(PackagesResponse {
         is_running: package_manager.is_running.load(Ordering::SeqCst),
         commit_queued: package_manager.commit_queued.load(Ordering::SeqCst),
-        packages: x.deref(),
+        packages: packages,
     })
 }
 
@@ -47,7 +51,7 @@ async fn api_commit(data: web::Data<Mutex<PackageManager>>, req: HttpRequest) ->
     let mut package_manager = data.lock().unwrap();
     let qs = Query::<HashMap<String, String>>::from_query(req.query_string()).unwrap();
     if qs.contains_key("now") {
-        let commit_res = package_manager.commit_now();
+        let commit_res = package_manager.commit();
         if commit_res.is_err() {
             return HttpResponse::InternalServerError()
                 .json(BasicErrorResponse {
@@ -55,8 +59,6 @@ async fn api_commit(data: web::Data<Mutex<PackageManager>>, req: HttpRequest) ->
                     error: commit_res.unwrap_err().to_string()
                 });
         }
-    } else {
-        package_manager.queue_commit();
     }
     HttpResponse::Ok().json(BasicResultResponse {
         ok: true
@@ -104,7 +106,6 @@ pub async fn start_web() -> std::io::Result<()> {
     let data = web::Data::new(Mutex::new(PackageManager::new(config.clone())));
     data.lock().unwrap().start_workers();
     data.lock().unwrap().load_packages();
-    data.lock().unwrap().queue_commit();
 
     let serve_path = Path::new("./serve");
     if !serve_path.exists() {
