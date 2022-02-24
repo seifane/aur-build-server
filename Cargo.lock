@@ -333,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "aur-build-server"
-version = "0.3.0"
+version = "0.3.2"
 dependencies = [
  "actix-files",
  "actix-service",

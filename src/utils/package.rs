@@ -59,7 +59,7 @@ pub fn run_makepkg(package_name: &String, install: bool) -> Result<(), PackageBu
 
     let output = Command::new("sh")
         .arg("-c")
-        .arg(format!("cd data/{}; makepkg --clean --noconfirm{}", package_name, cmd_args)).output();
+        .arg(format!("cd data/{}; makepkg --syncdeps --clean --noconfirm{}", package_name, cmd_args)).output();
 
     let out = output.unwrap();
 
