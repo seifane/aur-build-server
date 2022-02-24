@@ -3,6 +3,20 @@ use regex::Regex;
 use crate::utils::file::read_file_to_string;
 use crate::utils::package_data::Package;
 
+fn sanitize_dependency(dep: &str) -> String {
+    let mut char_index = 0;
+    for c in vec![">", "<", "="] {
+        let found = dep.find(c).unwrap_or(0);
+        if char_index == 0 || found < char_index {
+            char_index = found;
+        }
+    }
+    if char_index > 0 {
+        return dep[..char_index].to_string();
+    }
+    dep.to_string()
+}
+
 pub fn read_dependencies(package: &Package, dependency_type: &str) -> Result<Vec<String>, io::Error> {
     let path = format!("data/{}/PKGBUILD", package.name);
     let pkgbuild = read_file_to_string(path.as_str()).unwrap();
@@ -21,7 +35,7 @@ pub fn read_dependencies(package: &Package, dependency_type: &str) -> Result<Vec
 
     let re = Regex::new(r"'([^']+)'").unwrap();
     for cap in re.captures_iter(depends) {
-        deps.push(String::from(cap.get(1).unwrap().as_str()));
+        deps.push(sanitize_dependency(cap.get(1).unwrap().as_str()));
     }
     Ok(deps)
 }

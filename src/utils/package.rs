@@ -59,7 +59,7 @@ pub fn run_makepkg(package_name: &String, install: bool) -> Result<(), PackageBu
 
     let output = Command::new("sh")
         .arg("-c")
-        .arg(format!("cd data/{}; makepkg --syncdeps --clean --noconfirm{}", package_name, cmd_args)).output();
+        .arg(format!("cd data/{}; makepkg --clean --noconfirm{}", package_name, cmd_args)).output();
 
     let out = output.unwrap();
 
@@ -158,7 +158,7 @@ pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>
 
         let output = Command::new("sh")
             .arg("-c")
-            .arg(format!("sudo pacman -Sy --noconfirm {}", deps.join(" "))).output()?;
+            .arg(format!("sudo pacman -Syu --noconfirm {}", deps.join(" "))).output()?;
 
         write_logs(package.name.as_str(), output.stdout.as_slice(), "stdout_deps").unwrap_or(());
         write_logs(package.name.as_str(), output.stderr.as_slice(), "stderr_deps").unwrap_or(());
