@@ -166,7 +166,7 @@ impl PackageManager {
         for node in tree.iter_mut() {
             let package = node.get_mut();
             if package.name == package_name {
-                if package.status != PackageStatus::Built {
+                if package.status == PackageStatus::Building {
                     warn!("Not rebuilding package {} because it's not built yet", package.name);
                     return;
                 }
