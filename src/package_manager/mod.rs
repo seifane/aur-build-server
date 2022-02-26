@@ -92,6 +92,7 @@ impl PackageManager {
         if package.status == PackageStatus::Built {
             info!("Built package {}", package.name);
             copy_package_to_repo(&package.name).unwrap();
+            build_repo(self.config.repo_name.clone().unwrap_or(String::from("aurbuild")))?;
         } else {
             error!("Failed to build package {}", package.name);
         }
