@@ -29,7 +29,7 @@ pub fn get_queued_branch(arena: &Arena<Package>) -> Option<NodeId> {
     None
 }
 
-pub fn insert_dependence(dep: &Package, of_package: &NodeId, arena: &mut Arena<Package>) {
+pub fn insert_dependency(arena: &mut Arena<Package>, dep: &Package, of_package: &NodeId) {
     let existing = get_by_package_name(arena, &dep.name);
     match existing {
         None => {
@@ -49,12 +49,12 @@ pub fn insert_package(package: &Package, arena: &mut Arena<Package>) {
         None => {
             let package_node = arena.new_node(package.clone());
 
-            let aur_deps = filter_aur_deps(get_dependencies(package));
+            let aur_deps = filter_aur_deps(get_dependencies(package, false));
             for aur_dep in aur_deps.iter() {
-                insert_dependence(
+                insert_dependency(
+                    arena,
                     &Package::from_package_name(aur_dep),
-                    &package_node,
-                    arena
+                    &package_node
                 );
             }
         },

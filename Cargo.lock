@@ -1076,8 +1076,9 @@ dependencies = [
 
 [[package]]
 name = "indextree"
-version = "4.3.1"
-source = "git+https://github.com/seifane/indextree.git#a2c1526a63251430a1f88cc48276244b2f2fb512"
+version = "4.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42b4b46b3311ebd8e5cd44f6b03b36e0f48a70552cf6b036afcebc5626794066"
 dependencies = [
  "rayon",
 ]

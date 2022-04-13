@@ -58,10 +58,7 @@ impl PackageManager {
     }
 
     fn process_package_node(&mut self, node_id: NodeId) {
-        let mut node = self.package_tree.lock().unwrap().get(node_id).unwrap().get().clone();
-        let mut child = self.package_tree.lock().unwrap().get(node_id).unwrap().first_child().clone();
-
-        self.process_package(&mut node, child.is_some());
+        let mut child = Some(node_id);
 
         while child.is_some() {
             let arena = self.package_tree.lock().unwrap();
@@ -73,11 +70,15 @@ impl PackageManager {
             child = node.next_sibling();
             drop(arena);
 
-            self.process_package(&mut package, do_install);
+            let res = self.process_package(&mut package, do_install);
+            if !res {
+                return;
+            }
         }
+
     }
 
-    fn process_package(&mut self, package: &mut Package, do_install: bool) {
+    fn process_package(&mut self, package: &mut Package, do_install: bool) -> bool {
         let force = package.status == PackageStatus::QueuedForce;
         package.status = PackageStatus::Building;
         insert_package(package, self.package_tree.lock().unwrap().borrow_mut());
@@ -93,10 +94,10 @@ impl PackageManager {
             info!("Built package {}", package.name);
             copy_package_to_repo(&package.name).unwrap();
             build_repo(self.config.repo_name.clone().unwrap_or(String::from("aurbuild"))).unwrap_or(());
-        } else {
-            error!("Failed to build package {}", package.name);
+            return true;
         }
-
+        error!("Failed to build package {}", package.name);
+        false
     }
 
 
@@ -136,6 +137,8 @@ impl PackageManager {
             return;
         }
 
+        info!("Loading packages ...");
+
         self.config.packages.iter().for_each(|package_config| {
             let package = Package {
                 name: package_config.name.clone(),
@@ -146,7 +149,8 @@ impl PackageManager {
             };
             insert_package(&package, self.package_tree.lock().unwrap().borrow_mut());
         });
-        println!("Loaded packages");
+
+        info!("Loaded packages");
         print_tree(self.package_tree.lock().unwrap().borrow());
     }
 

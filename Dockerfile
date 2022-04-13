@@ -3,7 +3,7 @@ COPY . /app
 WORKDIR /app
 RUN cargo build --release
 
-FROM archlinux/archlinux:latest
+FROM archlinux/archlinux:latest as base
 
 RUN pacman-db-upgrade
 RUN pacman -Syy
@@ -17,6 +17,16 @@ WORKDIR /app
 
 RUN useradd -m -s /bin/bash app
 RUN echo -e "app  ALL=(ALL) NOPASSWD:/usr/sbin/pacman\napp  ALL=(ALL) NOPASSWD:/usr/sbin/pacman-key" | sudo tee /etc/sudoers.d/app
+
+FROM base as local
+
+RUN pacman -S --noconfirm rustup
+USER 1000
+RUN rustup default stable
+
+WORKDIR /app
+
+FROM base
 
 COPY --from=builder /app/target/release/aur-build-server /app/aur-build-server
 COPY start.sh /app/start.sh

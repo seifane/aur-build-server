@@ -101,15 +101,17 @@ pub fn build_package(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condv
     Ok(())
 }
 
-pub fn get_dependencies(package: &Package) -> Vec<String> {
+pub fn get_dependencies(package: &Package, with_optdepends: bool) -> Vec<String> {
     debug!("Getting dependencies for {}", package.name);
     clone_repo(&package.name).unwrap();
     let mut deps = read_dependencies(package, "depends").unwrap();
     deps.extend(read_dependencies(package, "makedepends").unwrap());
     deps.extend(read_dependencies(package, "checkdepends").unwrap());
-    deps.extend(parse_opt_deps(
-        read_dependencies(package, "optdepends").unwrap()
-    ));
+    if with_optdepends {
+        deps.extend(parse_opt_deps(
+            read_dependencies(package, "optdepends").unwrap()
+        ));
+    }
     deps
 }
 
@@ -129,12 +131,26 @@ pub fn filter_aur_deps(deps: Vec<String>) -> Vec<String> {
 pub fn install_dependencies(package: &Package, dependency_lock: Arc<(Mutex<bool>, Condvar)>) -> Result<(), Box<dyn Error>> {
     let &(ref lock, ref cvar) = &*dependency_lock;
 
-    let mut deps = read_dependencies(package, "depends")?;
-    deps.extend(read_dependencies(package, "makedepends")?);
-    deps.extend(read_dependencies(package, "checkdepends")?);
-    deps.extend(parse_opt_deps(
-        read_dependencies(package, "optdepends")?
-    ));
+    let package_aur_data_res = get_package_data(&package.name)?;
+
+    if package_aur_data_res.result_count == 0 {
+        return Ok(());
+    }
+
+    let package_data = package_aur_data_res.results.get(0).unwrap();
+
+    let mut deps = Vec::new();
+    if package_data.depends.is_some() {
+        deps.extend(package_data.depends.as_ref().unwrap().clone());
+    }
+    if package_data.check_depends.is_some() {
+        deps.extend(package_data.check_depends.as_ref().unwrap().clone());
+    }
+    if package_data.make_depends.is_some() {
+        deps.extend(package_data.make_depends.as_ref().unwrap().clone());
+    }
+
+    info!("Installing dependencies {}", deps.join(","));
 
     deps.retain(|dep|  {
         let res = get_package_data(dep).unwrap();

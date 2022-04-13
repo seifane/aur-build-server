@@ -3,3 +3,4 @@ config/
 data/
 serve/
 logs/
+/aur-build-server.log
