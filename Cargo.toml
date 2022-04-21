@@ -2,7 +2,7 @@
 name = "aur-build-server"
 description = "An AUR build server"
 authors = ["Seïfane Idouchach"]
-version = "0.3.5"
+version = "0.5.0"
 edition = "2021"
 
 [dependencies]
@@ -10,6 +10,8 @@ actix-web = "3"
 actix-files = "0.5.0"
 actix-service = "1.0.6"
 actix-web-httpauth = "0.5.1"
+
+srcinfo = "1.0.0"
 
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 

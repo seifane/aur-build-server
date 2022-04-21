@@ -1,16 +1,18 @@
 use std::borrow::{Borrow, BorrowMut};
+use std::collections::HashMap;
 use std::sync::{Arc, Condvar, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
 use std::error::Error;
 use std::time::{Duration, SystemTime};
-use indextree::{Arena, NodeId};
+use indextree::{Arena};
 use crate::config::Config;
-use crate::utils::{build_repo};
+use crate::utils::{build_repo, makepkg, pacman};
+use crate::utils::git::clone_repo;
+use crate::utils::graph::{get_queued_package, Graph, print_graph};
 use crate::utils::package::{copy_package_to_repo, make_package};
 use crate::utils::package_data::{Package, PackageStatus};
-use crate::utils::tree::{get_queued_branch, insert_package, print_tree};
 
 
 #[derive(Clone)]
@@ -18,6 +20,7 @@ pub struct PackageManager {
     pub is_running: Arc<AtomicBool>,
     pub commit_queued: Arc<AtomicBool>,
     pub dependency_lock: Arc<(Mutex<bool>, Condvar)>,
+    pub package_graph: Arc<Mutex<Graph<Package>>>,
     pub package_tree: Arc<Mutex<Arena<Package>>>,
     workers_handles: Arc<Mutex<Vec<JoinHandle<()>>>>,
     config: Config,
@@ -29,6 +32,7 @@ impl PackageManager {
             is_running: Arc::new(AtomicBool::new(false)),
             commit_queued: Arc::new(AtomicBool::new(false)),
             dependency_lock: Arc::new((Mutex::new(false), Condvar::new())),
+            package_graph: Arc::new(Mutex::new(Graph::new())),
             package_tree: Arc::new(Mutex::new(Arena::new())),
             workers_handles: Arc::new(Mutex::new(vec![])),
             config,
@@ -38,58 +42,34 @@ impl PackageManager {
     pub fn worker_thread(&mut self) {
         info!("Starting worker thread");
         while self.is_running.load(Ordering::SeqCst) {
-            let mut tree = self.package_tree.lock().unwrap();
-            let branch: Option<NodeId> = get_queued_branch(tree.borrow());
+            let node_id = get_queued_package(self.package_graph.lock().unwrap().borrow_mut());
 
-            match branch {
+            match node_id {
                 None => {
-                    drop(tree);
                     thread::sleep(Duration::from_millis(1000));
-                },
+                }
                 Some(node_id) => {
-                    let node = tree.get_mut(node_id).unwrap().get_mut();
-                    node.status = PackageStatus::Building;
-                    drop(tree);
-                    self.process_package_node(node_id);
+                    self.process_package(node_id);
                 }
             }
         }
         info!("Stopping worker thread");
     }
 
-    fn process_package_node(&mut self, node_id: NodeId) {
-        let mut child = Some(node_id);
+    fn process_package(&mut self, node_id: usize) -> bool {
+        let mut package = self.package_graph.lock().unwrap().get_node(node_id).unwrap().data.clone();
+        let do_install = self.package_graph.lock().unwrap().get_dests(node_id).len() != 0;
 
-        while child.is_some() {
-            let arena = self.package_tree.lock().unwrap();
-
-            let child_id = child.unwrap();
-            let node = arena.get(child_id).unwrap();
-            let do_install = node.first_child().is_some();
-            let mut package = node.get().clone();
-            child = node.next_sibling();
-            drop(arena);
-
-            let res = self.process_package(&mut package, do_install);
-            if !res {
-                return;
-            }
-        }
-
-    }
-
-    fn process_package(&mut self, package: &mut Package, do_install: bool) -> bool {
-        let force = package.status == PackageStatus::QueuedForce;
         package.status = PackageStatus::Building;
-        insert_package(package, self.package_tree.lock().unwrap().borrow_mut());
+        self.package_graph.lock().unwrap().update_node(node_id, &package);
 
         info!("Making package {} install {}", package.name, do_install);
 
-        let res = make_package(package, self.dependency_lock.clone(), force);
+        let res = make_package(&mut package, self.dependency_lock.clone());
 
         package.status = res.is_ok().then(|| PackageStatus::Built).unwrap_or(PackageStatus::Failed);
 
-        insert_package(package, self.package_tree.lock().unwrap().borrow_mut());
+        self.package_graph.lock().unwrap().update_node(node_id, &package);
         if package.status == PackageStatus::Built {
             info!("Built package {}", package.name);
             copy_package_to_repo(&package.name).unwrap();
@@ -140,18 +120,48 @@ impl PackageManager {
         info!("Loading packages ...");
 
         self.config.packages.iter().for_each(|package_config| {
+            let commit_id = clone_repo(&package_config.name);
             let package = Package {
                 name: package_config.name.clone(),
                 run_before: package_config.run_before.clone(),
                 status: PackageStatus::Queued,
-                last_build_commit: None,
+                last_build_commit: if commit_id.is_ok() {Some(commit_id.unwrap())} else {None},
                 time: SystemTime::now(),
             };
-            insert_package(&package, self.package_tree.lock().unwrap().borrow_mut());
+            self.package_graph.lock().unwrap().put_node(&package);
         });
 
+        self.load_dependencies();
+
         info!("Loaded packages");
-        print_tree(self.package_tree.lock().unwrap().borrow());
+        print_graph(self.package_graph.lock().unwrap().borrow());
+    }
+
+    pub fn load_dependencies(&mut self) {
+        let mut packages = HashMap::new();
+        for (index, package) in self.package_graph.lock().unwrap().iter().enumerate() {
+            packages.insert(index, package.data.name.clone());
+        }
+
+        while !packages.is_empty() {
+            let mut next_deps = HashMap::new();
+            for (index, package_name) in packages.iter() {
+
+                let deps = makepkg::get_dependencies(package_name);
+                let (_, aur_deps) = pacman::split_repo_aur_packages(deps);
+
+                for aur_dep in aur_deps.iter() {
+                    let mut graph_lock = self.package_graph.lock().unwrap();
+
+                    let node_id = graph_lock.put_node(&Package::from_package_name(aur_dep));
+                    graph_lock.add_edge(node_id, *index);
+
+                    next_deps.insert(node_id, aur_dep.clone());
+                }
+            }
+            packages.clear();
+            packages = next_deps;
+        }
     }
 
     pub fn rebuild_packages(&mut self) {

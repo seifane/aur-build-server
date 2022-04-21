@@ -99,8 +99,8 @@ pub async fn start_web() -> std::io::Result<()> {
     let bind_addr = format!("0.0.0.0:{}", args.port);
 
     let data = web::Data::new(Mutex::new(PackageManager::new(config.clone())));
-    data.lock().unwrap().start_workers();
     data.lock().unwrap().load_packages();
+    data.lock().unwrap().start_workers();
 
     let serve_path = Path::new("./serve");
     if !serve_path.exists() {

@@ -333,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "aur-build-server"
-version = "0.3.5"
+version = "0.5.0"
 dependencies = [
  "actix-files",
  "actix-service",
@@ -352,6 +352,7 @@ dependencies = [
  "serde_json",
  "simple-error",
  "simplelog",
+ "srcinfo",
  "tokio 1.15.0",
 ]
 
@@ -2017,6 +2018,12 @@ dependencies = [
  "libc",
  "winapi 0.3.9",
 ]
+
+[[package]]
+name = "srcinfo"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a69c538e89460803500fca8d5f54a82f5ae1b3b2fc0661462ee41d8641a3571a"
 
 [[package]]
 name = "standback"

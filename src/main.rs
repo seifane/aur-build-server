@@ -14,7 +14,6 @@ use clap::Parser;
 use crate::args::Args;
 
 use crate::http::server::start_web;
-use crate::utils::aurweb::get_package_data;
 use crate::utils::parse_log_level_from_string;
 
 #[actix_web::main]

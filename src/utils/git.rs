@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 use git2::{ObjectType, Repository};
+use simple_error::SimpleError;
 
 pub fn get_current_commit_id(repo: &Repository) -> Result<String, git2::Error> {
     Ok(repo.head()?.resolve()?.peel(ObjectType::Commit)?
@@ -15,6 +16,10 @@ pub fn clone_repo(repo_name: &String) -> Result<String, Box<dyn std::error::Erro
     }
     let cloned = Repository::clone(url.as_str(), path.as_str())?;
     let cloned_commit = get_current_commit_id(&cloned);
+
+    if cloned_commit.is_err() {
+        return Err(Box::new(SimpleError::new("Cannot get cloned commit")));
+    }
 
     return Ok(cloned_commit.unwrap());
 }

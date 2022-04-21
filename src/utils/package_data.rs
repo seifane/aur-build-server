@@ -1,3 +1,4 @@
+use std::fmt;
 use std::time::SystemTime;
 use serde::Serialize;
 
@@ -24,6 +25,12 @@ pub struct Package {
 impl PartialEq for Package {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
+    }
+}
+
+impl fmt::Display for Package {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
     }
 }
 
