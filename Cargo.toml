@@ -28,7 +28,7 @@ git2 = "0.13.25"
 
 serde = { version = "1.0.133", features = ["derive"] }
 serde_json = "1.0.74"
-regex = "1.5.4"
+regex = "1.5.5"
 
 relative-path = "1.6.0"
 clap = { version = "3.0.7", features = ["derive"] }
