@@ -5,7 +5,7 @@ mod methods;
 use std::str::from_utf8;
 use std::sync::{Arc};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::{RwLock};
+use tokio::sync::{Mutex, RwLock};
 use warp::{Filter, reject, Rejection};
 use warp::header::headers_cloned;
 use warp::http::{HeaderMap, HeaderValue};
@@ -14,6 +14,7 @@ use crate::http::methods::{get_logs, get_packages, get_workers, rebuild_packages
 use crate::http::websocket::handle_websocket_connection;
 use crate::models::config::Config;
 use crate::orchestrator::Orchestrator;
+use crate::utils::repo::Repo;
 
 
 async fn authorize((token, headers): (String, HeaderMap<HeaderValue>)) -> Result<(), Rejection> {
@@ -35,11 +36,17 @@ pub fn with_auth(token: String) -> impl Filter<Extract=((), ), Error=Rejection> 
         .and_then(authorize)
 }
 
-pub async fn start_http(orchestrator: Arc<RwLock<Orchestrator>>, config: Config) {
+pub async fn start_http(
+    orchestrator: Arc<RwLock<Orchestrator>>,
+    repo: Arc<Mutex<Repo>>,
+    config: Config
+) {
     let next_id: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(1));
 
     let orchestrator_filter = warp::any().map(move || orchestrator.clone());
+    let repo_filter = warp::any().map(move || repo.clone());
     let next_id_filter = warp::any().map(move || next_id.clone());
+
     let ws = warp::path("ws")
         .and(warp::ws())
         .and(orchestrator_filter.clone())
@@ -89,7 +96,8 @@ pub async fn start_http(orchestrator: Arc<RwLock<Orchestrator>>, config: Config)
         .and(warp::post())
         .and(warp::multipart::form().max_length(1024 * 1000 * 1000 * 1000))
         .and(orchestrator_filter.clone())
-        .and_then(move |f, o| upload_package(o, f));
+        .and(repo_filter.clone())
+        .and_then(move |f, orchestrator , repo| upload_package(orchestrator, f, repo));
 
     let files = warp::path("repo")
         .and(warp::get())

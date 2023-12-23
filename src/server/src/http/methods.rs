@@ -2,7 +2,7 @@ use std::convert::Infallible;
 use std::path::{Component, PathBuf};
 use std::sync::Arc;
 use log::{debug, error, info};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use warp::multipart::FormData;
 use warp::{reply};
 use warp::http::StatusCode;
@@ -13,7 +13,7 @@ use crate::http::util::MultipartField::{File, Text};
 use crate::http::util::parse_multipart;
 use crate::models::worker::Worker;
 use crate::orchestrator::Orchestrator;
-use crate::utils::repo::add_packages_to_repo;
+use crate::utils::repo::{Repo};
 
 pub async fn get_packages(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible> {
     Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.packages.iter().map(|i| i.to_response()).collect::<Vec<_>>()))
@@ -46,7 +46,7 @@ pub async fn rebuild_packages(orchestrator: Arc<RwLock<Orchestrator>>, payload: 
     Ok(reply::json(&SuccessResponse::from(true)))
 }
 
-pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormData) -> Result<impl warp::Reply, Infallible>
+pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormData, repo: Arc<Mutex<Repo>>) -> Result<impl warp::Reply, Infallible>
 {
     let fields = parse_multipart(form).await?;
 
@@ -95,9 +95,14 @@ pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormD
 
     info!("Received packages {:?}", package_files);
 
-    let res = add_packages_to_repo(&orchestrator.read().await.repo_name.clone(), package_files, orchestrator.read().await.sign.clone()).await;
-    if let Err(e) = &res {
-        error!("Add to repo failed {}", e.to_string());
+    if !package_files.is_empty() {
+        let res = repo.lock().await.add_packages_to_repo(package_files).await;
+        if let Err(e) = &res {
+            error!("Add to repo failed {}", e.to_string());
+
+            orchestrator.write().await.set_package_status(package_name.unwrap(), PackageStatus::FAILED);
+            return Ok("");
+        }
     }
 
     if let Some(error) = fields.get("error") {

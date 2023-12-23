@@ -116,10 +116,11 @@ impl Orchestrator {
         }
     }
 
-    pub fn set_package_build_data(&mut self,
-                                  package_name: &String,
-                                  time: Option<DateTime<Utc>>,
-                                  version: Option<String>,
+    pub fn set_package_build_data(
+        &mut self,
+        package_name: &String,
+        time: Option<DateTime<Utc>>,
+        version: Option<String>,
     ) {
         for package in self.packages.iter_mut() {
             if package.name.eq(package_name) {
@@ -161,7 +162,7 @@ impl Orchestrator {
         }
     }
 
-    pub async fn run_async(orchestrator: Arc<RwLock<Orchestrator>>) {
+    pub async fn dispatch_loop(orchestrator: Arc<RwLock<Orchestrator>>) {
         let is_running = orchestrator.read().await.is_running.clone();
 
         is_running.store(true, Ordering::SeqCst);

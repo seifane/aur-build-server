@@ -35,4 +35,8 @@ impl Config {
     {
         self.port.unwrap_or(8888)
     }
+
+    pub fn get_sign(&self) -> bool {
+        self.sign.unwrap_or(false)
+    }
 }

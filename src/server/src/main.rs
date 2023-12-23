@@ -7,22 +7,29 @@ use std::fs::File;
 use std::sync::Arc;
 use simplelog::{ColorChoice, CombinedLogger, Config as SimpleLogConfig, TerminalMode, TermLogger, WriteLogger};
 use clap::Parser;
-use log::info;
-use tokio::sync::RwLock;
+use log::{debug, info};
+use tokio::sync::{Mutex, RwLock};
 use crate::http::start_http;
 use crate::models::args::Args;
 use crate::models::config::Config;
 use crate::orchestrator::Orchestrator;
+use crate::utils::repo::Repo;
 
 pub async fn start(args: Args) {
     let config = Config::from_file(args.config_path);
     let orchestrator = Arc::new(RwLock::new(Orchestrator::from_config(&config)));
+    let repo = Arc::new(Mutex::new(Repo::from_config(&config)));
+
+    let res = repo.lock().await.add_packages_to_repo(Vec::new()).await;
+    if let Err(err) = res {
+        debug!("{:?}", err);
+    }
 
     info!("Starting orchestrator");
-    let orchestrator_task = tokio::task::spawn(Orchestrator::run_async(orchestrator.clone()));
+    let orchestrator_task = tokio::task::spawn(Orchestrator::dispatch_loop(orchestrator.clone()));
 
     info!("Starting http");
-    start_http(orchestrator, config).await;
+    start_http(orchestrator, repo, config).await;
     orchestrator_task.abort();
 
     info!("Stopped orchestrator");
