@@ -1,34 +1,8 @@
-[package]
-name = "aur-build-server"
-description = "An AUR build server"
-authors = ["Seïfane Idouchach"]
-version = "0.5.0"
-edition = "2021"
-
-[dependencies]
-actix-web = "3"
-actix-files = "0.5.0"
-actix-service = "1.0.6"
-actix-web-httpauth = "0.5.1"
-
-srcinfo = "1.0.0"
-
-reqwest = { version = "0.11", features = ["blocking", "json"] }
-
-tokio = { version = "1", features = ["full"] }
-futures = "0.3.19"
-simple-error = "0.2.3"
-indextree = { version = "4.4.0", features = ["par_iter"] }
-rayon = "1.5.1"
-
-log = "0.4.14"
-simplelog = { version = "^0.11.2", features = ["paris"] }
-
-git2 = "0.13.25"
-
-serde = { version = "1.0.133", features = ["derive"] }
-serde_json = "1.0.74"
-regex = "1.5.4"
-
-relative-path = "1.6.0"
-clap = { version = "3.0.7", features = ["derive"] }
+[workspace]
+resolver = "2"
+members = [
+    "src/common",
+    "src/server",
+    "src/worker",
+    "src/cli"
+]

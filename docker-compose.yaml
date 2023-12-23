@@ -1,11 +1,20 @@
 services:
-  app:
+  server:
     build:
       context: .
       dockerfile: Dockerfile
-      target: local
-    entrypoint: sleep infinity
-    volumes:
-      - .:/app
+      target: server
+    command: --log-level debug
     ports:
       - "8888:8888"
+    volumes:
+      - "./config_server.json:/app/config_server.json"
+      - "./mount/logs:/app/logs"
+      - "./mount/serve:/app/serve"
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    volumes:
+      - "./config_worker.json:/app/config_worker.json"

@@ -1,6 +1,9 @@
 target/
 config/
-data/
-serve/
 logs/
-/aur-build-server.log
+mount/
+worker_logs/
+config_server.json
+config_worker.json
+aur-build-worker.log
+aur-build-server.log

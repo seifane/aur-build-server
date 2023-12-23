@@ -1,3 +1,5 @@
-target
-data
-serve
+target/
+mount/
+config/
+config_server.json
+config_worker.json
