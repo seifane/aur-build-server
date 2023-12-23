@@ -11,11 +11,7 @@ Right now it pulls AUR packages builds them with makepkg and serves them on a cu
 cargo build
 ```
 
-or Docker image:
-
-```bash
-docker build -t aur-build-server:latest .
-```
+Should build all binaries `aur-build-server`, `aur-build-worker`.
 
 ## Running
 
