@@ -1,0 +1,5 @@
+{
+  "base_url": "http://server:8888",
+  "base_url_ws": "ws://server:8888",
+  "api_key": "changeme"
+}

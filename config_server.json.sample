@@ -1,0 +1,14 @@
+{
+  "repo_name": "aurbuild",
+  "sign": false,
+  "api_key": "changeme",
+  "packages": [
+    {
+      "name": "google-chrome"
+    },
+    {
+      "name": "tor-browser",
+      "run_before": "gpg --auto-key-locate nodefault,wkd --locate-keys torbrowser@torproject.org"
+    }
+  ]
+}

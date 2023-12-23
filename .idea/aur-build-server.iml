@@ -3,6 +3,10 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/cli/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/common/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/server/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/worker/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />
