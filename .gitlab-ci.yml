@@ -35,7 +35,7 @@ build_binaries:
   image:
     name: rust:latest
   script:
-    - cargo --frozen --release build
+    - cargo build --frozen --release
   artifacts:
     paths:
       - target/release/aur-build-cli
