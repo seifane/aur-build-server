@@ -4,10 +4,15 @@ use clap::{Parser, Subcommand};
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
 pub struct Args {
+    /// Base url of the server. Will take over the profile if specified along with api-key.
     #[arg(long)]
-    pub host: String,
+    pub base_url: Option<String>,
+    /// Api key of the server. Will take over the profile if specified along with base-url.
     #[arg(long)]
-    pub key: String,
+    pub api_key: Option<String>,
+    /// Profile name to use.
+    #[arg(long, short)]
+    pub profile: Option<String>,
 
     #[command(subcommand)]
     pub command: Commands
@@ -15,18 +20,39 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Packages related commands. list, rebuild.
     Packages {
         #[command(subcommand)]
         command: PackageCommands
     },
+    /// <package> <log_type> Fetch the logs for the given package and type.
     Logs {
         package: String,
         log_type: String
     },
+    /// Profile related commands. list, create, delete, set-default.
+    Profiles {
+        #[command(subcommand)]
+        command: ProfileCommands
+    }
 }
 
 #[derive(Subcommand, Debug)]
 pub enum PackageCommands {
+    /// List packages
     List {},
+    /// package1 package2 [...] Rebuild specified packages, if no specified packages rebuild all.
     Rebuild { packages: Vec<String> }
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ProfileCommands {
+    /// List profiles.
+    List {},
+    /// Create a new profile.
+    Create {},
+    /// Delete a profile.
+    Delete { name: String },
+    /// Set a profile as default.
+    SetDefault { name: String }
 }

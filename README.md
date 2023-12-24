@@ -10,20 +10,19 @@ Right now it pulls AUR packages builds them with makepkg and serves them on a cu
 ```bash
 cargo build
 ```
-
 Should build all binaries `aur-build-server`, `aur-build-worker`.
 
-## Running
+# Running
 
 The project is split into two main parts. 
 
-### Server
+## Server
 The server is in charge of packages, distribution of the repository and dispatching them to workers.
 It loads the configuration from `config_server.json` by default.
 
 The server will dispatch packages to be built to connected workers and receive the end product (built package + logs) to add to the repository.
 
-### Worker
+## Worker
 The worker connects to the server and await instructions to build packages. It is strictly in charge of building of the packages.
 Once it is done with the build it will upload the artifacts back to the server.
 You can have any numbers of workers at any time connected to the server. This allows to scale the number available workers based on the size of the repo you're building.
@@ -33,7 +32,7 @@ The better way would be to run it with a user that has a no password root author
 Right now there's a Dockerfile that does that.
 
 
-### Docker 
+## Docker 
 You can use the provider docker compose setup to start the project.
 
 ```bash
@@ -69,6 +68,27 @@ Options:
   -h, --help                       Print help
   -V, --version                    Print version
 
+```
+
+## CLI
+
+A CLI is provided to interface with the server. It currently allows to fetch the packages and their current status as well as logs.
+
+```text
+Usage: aur-build-cli [OPTIONS] <COMMAND>
+
+Commands:
+  packages  Packages related commands. list, rebuild
+  logs      <package> <log_type> Fetch the logs for the given package and type
+  profiles  Profile related commands. list, create, delete, set-default
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+      --base-url <BASE_URL>  Base url of the server. Will take over the profile if specified along with api-key
+      --api-key <API_KEY>    Api key of the server. Will take over the profile if specified along with base-url
+  -p, --profile <PROFILE>    Profile name to use
+  -h, --help                 Print help
+  -V, --version              Print version
 ```
 
 ## Api
