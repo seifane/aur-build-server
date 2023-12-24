@@ -29,3 +29,15 @@ build_worker:
       --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
       --target "worker"
       --destination "${CI_REGISTRY_IMAGE}:${CI_COMMIT_REF_NAME}-worker"
+
+build_binaries:
+  stage: build
+  image:
+    name: rust:latest
+  script:
+    - cargo --frozen --release build
+  artifacts:
+    paths:
+      - target/release/aur-build-cli
+      - target/release/aur-build-server
+      - target/release/aur-build-worker
