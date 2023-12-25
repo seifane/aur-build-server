@@ -13,7 +13,7 @@ pub fn sanitize_dependency(dep: &str) -> String {
         }
     }
     if char_index > 0 {
-        return dep[..char_index - 1].to_string();
+        return dep[..char_index].to_string();
     }
     dep.to_string()
 }

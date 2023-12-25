@@ -16,7 +16,6 @@ RUN mkdir /app/data
 WORKDIR /app
 
 RUN useradd -m -s /bin/bash app
-RUN echo -e "app  ALL=(ALL) NOPASSWD:/usr/sbin/pacman\napp  ALL=(ALL) NOPASSWD:/usr/sbin/pacman-key" | sudo tee /etc/sudoers.d/app
 
 FROM base as server
 
@@ -31,6 +30,9 @@ RUN chmod +x /app/start-server.sh
 ENTRYPOINT ["/app/start-server.sh"]
 
 FROM base as worker
+
+RUN echo -e "app  ALL=(ALL) NOPASSWD:/usr/sbin/pacman\napp  ALL=(ALL) NOPASSWD:/usr/sbin/pacman-key" | sudo tee /etc/sudoers.d/app
+RUN echo -e "[multilib]\nInclude = /etc/pacman.d/mirrorlist" | sudo tee -a /etc/pacman.conf
 
 COPY --from=builder /app/target/release/aur-build-worker /app/aur-build-worker
 COPY docker/start-worker.sh /app/start-worker.sh

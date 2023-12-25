@@ -1,5 +1,5 @@
 use async_recursion::async_recursion;
-use log::{error, info};
+use log::{debug, error, info};
 use srcinfo::Srcinfo;
 use tokio::process::Command;
 use crate::errors::PackageBuildError;
@@ -86,6 +86,8 @@ pub async fn extract_aur_deps(srcinfo: &Srcinfo) -> Vec<String>
             }
         }
     }
+
+    debug!("Installing aur dependencies for {} {:?}", srcinfo.base.pkgbase, deps);
 
     deps.dedup();
     deps

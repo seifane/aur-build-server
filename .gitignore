@@ -3,6 +3,14 @@ config/
 logs/
 mount/
 worker_logs/
+
+arch-packages/aur-build-cli
+!arch-packages/aur-build-cli/PKGBUILD
+arch-packages/aur-build-server
+!arch-packages/aur-build-server/PKGBUILD
+arch-packages/aur-build-worker
+!arch-packages/aur-build-worker/PKGBUILD
+
 config_server.json
 config_worker.json
 aur-build-worker.log

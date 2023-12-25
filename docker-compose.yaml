@@ -16,5 +16,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: worker
+    command: --log-level debug
     volumes:
       - "./config_worker.json:/app/config_worker.json"
