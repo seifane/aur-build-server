@@ -2,7 +2,14 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
 
 stages:
+  - test
   - build
+
+test_apps:
+  stage: test
+  image: rust
+  script:
+    - cargo test
 
 build_server:
   stage: build

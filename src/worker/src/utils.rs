@@ -8,7 +8,7 @@ pub fn sanitize_dependency(dep: &str) -> String {
     let mut char_index = 0;
     for c in vec![">", "<", "="] {
         let found = dep.find(c).unwrap_or(0);
-        if char_index == 0 || found < char_index {
+        if char_index == 0 || (found > 0 && found < char_index) {
             char_index = found;
         }
     }
@@ -37,4 +37,21 @@ pub async fn add_package_files_to_form_data(package_name: &String, mut form: For
     }
 
     Ok(form)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::utils::sanitize_dependency;
+
+    #[test]
+    fn test_sanitize_dependency() {
+        assert_eq!(
+            sanitize_dependency("glibc>=2.28-4").as_str(),
+            "glibc"
+        );
+        assert_eq!(
+            sanitize_dependency("jre-runtime=17").as_str(),
+            "jre-runtime"
+        );
+    }
 }
