@@ -30,8 +30,9 @@ pub async fn start(args: Args) {
 
     info!("Starting http");
     start_http(orchestrator, repo, config).await;
-    orchestrator_task.abort();
+    info!("Stopped http");
 
+    orchestrator_task.abort();
     info!("Stopped orchestrator");
 }
 

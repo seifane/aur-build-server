@@ -1,25 +1,25 @@
 use std::error::Error;
-use log::{debug};
+use log::{debug, error, info};
 use tokio::process::Command;
 use crate::models::config::Config;
 
 pub struct Repo {
     pub repo_name: String,
-    pub sign: bool,
+    pub sign_key: Option<String>,
 }
 
 impl Repo {
-    pub fn new(repo_name: String, sign: bool) -> Self
+    pub fn new(repo_name: String, sign_key: Option<String>) -> Self
     {
         Repo {
             repo_name,
-            sign,
+            sign_key,
         }
     }
 
     pub fn from_config(config: &Config) -> Self
     {
-        Self::new(config.repo_name.clone(), config.get_sign())
+        Self::new(config.repo_name.clone(), config.sign_key.clone())
     }
 
     pub async fn get_packages(&self) -> Result<Vec<String>, Box<dyn Error + Send + Sync>>
@@ -38,44 +38,52 @@ impl Repo {
     }
 
     pub async fn add_packages_to_repo(&self, package_files: Vec<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
-        if self.sign {
+        if let Some(sign_key) = self.sign_key.as_ref() {
             for file in package_files.iter() {
                 let out = Command::new("gpg")
+                    .arg("--default-key")
+                    .arg(sign_key)
                     .arg("--yes")
                     .arg("--output")
                     .arg(format!("serve/{}.sig", file))
                     .arg("--detach-sig")
                     .arg(format!("serve/{}", file))
                     .output().await?;
-                debug!("GPG output for {} exit code : {:?} {:?} {:?}", file, out.status.code(), String::from_utf8(out.stdout), String::from_utf8(out.stderr))
+
+                if !out.status.success() {
+                    error!("GPG failed with exit code : {} : {:?} {:?}", out.status.code().unwrap_or(-1), String::from_utf8(out.stdout), String::from_utf8(out.stderr));
+                } else {
+                    debug!("GPG output for {} exit code : {:?} {:?} {:?}", file, out.status.code(), String::from_utf8(out.stdout), String::from_utf8(out.stderr))
+                }
             }
         } else {
-            debug!("Skipping signature ...")
+            info!("Skipping signature ...")
         }
 
         return self.build_repo(package_files).await;
     }
 
-    async fn build_repo(&self, package_files: Vec<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn build_repo(&self, mut package_files: Vec<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
         debug!("Building repo");
 
-        let mut args = vec!["--remove".to_string()];
-        if self.sign {
-            args.push("--verify".to_string());
-            args.push("--sign".to_string());
-        }
-        args.push(format!("{}.db.tar.gz", self.repo_name));
-
         if package_files.is_empty() {
-            let packages = self.get_packages().await?;
-            for package in packages {
-                args.push(package);
-            }
-        } else {
-            for package in package_files {
-                args.push(package);
-            }
-        };
+            package_files = self.get_packages().await?;
+        }
+
+        let mut args = vec!["--remove"];
+        if let Some(sign_key) = self.sign_key.as_ref() {
+            args.push("--verify");
+            args.push("--sign");
+            args.push("--key");
+            args.push(sign_key.as_str());
+        }
+
+        let repo_output_name = format!("{}.db.tar.gz", self.repo_name);
+        args.push(repo_output_name.as_str());
+
+        for package in package_files.iter() {
+            args.push(package.as_str());
+        }
 
         let out = Command::new("repo-add")
             .current_dir("serve/")

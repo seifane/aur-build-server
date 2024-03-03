@@ -14,9 +14,6 @@ use crate::models::server_package::{ServerPackage};
 use crate::models::worker::Worker;
 
 pub struct Orchestrator {
-    pub repo_name: String,
-    pub sign: bool,
-
     pub workers: HashMap<usize, Worker>,
     pub packages: Vec<ServerPackage>,
 
@@ -36,9 +33,6 @@ impl Orchestrator {
         }
 
         Orchestrator {
-            repo_name: config.repo_name.clone(),
-            sign: config.sign.unwrap_or(false),
-
             workers: HashMap::new(),
             packages,
 

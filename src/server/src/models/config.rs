@@ -24,7 +24,7 @@ impl PackageConfig {
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
     pub repo_name: String,
-    pub sign: Option<bool>,
+    pub sign_key: Option<String>,
 
     pub api_key: String,
     pub rebuild_time: Option<u64>,
@@ -47,9 +47,5 @@ impl Config {
     pub fn get_port(&self) -> u16
     {
         self.port.unwrap_or(8888)
-    }
-
-    pub fn get_sign(&self) -> bool {
-        self.sign.unwrap_or(false)
     }
 }

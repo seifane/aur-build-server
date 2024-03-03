@@ -100,13 +100,7 @@ Options:
   - ```json
     { "packages": ["platform"] }
     ```
-- `GET /api/logs/:package_name/:suffix` Get build logs for a given `package_name`. Valid options for suffix are
-  - `stdout` : stdout output of makepkg
-  - `stderr` : stderr output of makepkg 
-  - `stdout_before` : stdout output of run_before command if any
-  - `stderr_before` : stderr output of run_before command if any
-  - `stdout_deps` : stdout output of pacman install of dependencies
-  - `stderr_deps` : stderr output of pacman install of dependencies
+- `GET /api/logs/:package_name` Get build logs for a given `package_name`.
 
 ### Api Authentication
 The API are protected using an API key specified in the `config_server.json` file.
@@ -114,24 +108,32 @@ You can authenticate a request by including the API key in the `Authorization` h
 
 ## Configuration
 
-## Server
+### Server
 
 - `repo_name` (required) : The name of the repo that will be used for repo-add.
-- `sign` (default: false) : If true, the server will try to sign the packages and the repo using gpg.
+- `sign` (optional) : ID of the GPG key that the server should use when trying to sign the packages and the repo.
 - `api_key` (required) : The api key that will be used to authenticate workers and api consumers.
 - `rebuild_time` (optional) : The amount of seconds to wait before trying to rebuild a package. If none is given packages will not be automatically rebuilt.
 - `packages` (required) : The packages that should be built.
   - `name` (required) : Defines the name of the package from aur.
   - `run_before` (optional) : Defines a bash command to run before trying to build the package (see sample config).
+  - `patches` (optional) : Defines a list of patches to be applied to the downloaded package files
+    - `url` (required) : The url of the patch
+    - `sha512` (optional) : If given this is the SHA512 checksum for the patch file
 - `port` (default: 8888) : Port that the server will listen on.
 
-## Worker
+#### Signing
+
+To set up the packing signing you can make use of the `SIGN_KEY_PATH` environment variable in the docker container for the server.
+In the server configuration fill in the key ID and the server will try to sign built packages and repo database.
+
+### Worker
 
 - `base_url` (required) : The base url of the server
 - `base_url_ws` (required) : The base url websocket of the server
 - `api_key` (required) : The api key used to authenticate on the server
 
 # Roadmap
-- [ ] Support applying patches on repos
+- [x] Support applying patches on repos
 - [ ] Support repos from custom sources that are not aur (git, ...) 
 - [ ] Support restoring already built packages on start up

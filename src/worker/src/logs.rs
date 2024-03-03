@@ -58,8 +58,7 @@ pub async fn write_log(package_name: &str, data: &[u8]) -> Result<(), io::Error>
 pub async fn write_log_section(package_name: &str, section: LogSection, data: &[u8]) -> Result<(), io::Error>
 {
     write_section_header(package_name, section).await?;
-    let mut file = get_log_file_handle(package_name).await?;
-    file.write_all(data).await?;
+    write_log(package_name, data).await?;
     Ok(())
 }
 

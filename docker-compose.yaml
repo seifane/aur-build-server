@@ -5,12 +5,15 @@ services:
       dockerfile: Dockerfile
       target: server
     command: --log-level debug
+    environment:
+      - SIGN_KEY_PATH=/key.asc
     ports:
       - "8888:8888"
     volumes:
       - "./config_server.json:/app/config_server.json"
       - "./mount/logs:/app/logs"
       - "./mount/serve:/app/serve"
+      - "./config/key.asc:/key.asc"
   worker:
     build:
       context: .
