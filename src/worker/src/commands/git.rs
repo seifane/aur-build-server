@@ -82,7 +82,7 @@ pub fn clone_repo(repo_name: &String) -> Result<Repository, PackageBuildError> {
 
 #[cfg(test)]
 mod tests {
-    use tokio::fs::read_to_string;
+    use tokio::fs::{read_to_string, remove_dir, remove_dir_all};
     use common::models::{Package, PackagePatch};
     use crate::commands::git::{apply_patches, clone_repo};
 
@@ -95,8 +95,8 @@ mod tests {
             run_before: None,
             patches: vec![
                 PackagePatch {
-                    url: "https://gist.githubusercontent.com/seifane/9c6343a086392db6bc40f98138542e5e/raw/22a7ac55dcf378bde3bd63f9a68eb1799253ba67/gistfile1.txt".to_string(),
-                    sha512: Some("80a819fa1caa77660c1e5970cc6783a217364551fc331cce72e662d9d2c2e6b28712e278b3a9089822255f3506d07b9a05be28986d3a04bf72713ff0689eeb0a".to_string()),
+                    url: "https://gist.githubusercontent.com/seifane/34dd56a4e49f457309288a47f861acaf/raw/62d4dffcccc318ee6a8cbf17c55362ef8573bd5c/gistfile1.txt".to_string(),
+                    sha512: Some("1e0d86ec990133f8d542be9d87883d7b314b45b42486393995e7454f523244da7a7be1b092100a3019cdfba57eb3124e2a6bca9ca49ee34c04675451000bd77f".to_string()),
                 }
             ],
             last_built_version: None,
@@ -105,5 +105,6 @@ mod tests {
         apply_patches(&package, repo).await.unwrap();
         let contents = read_to_string("data/google-chrome/PKGBUILD").await.unwrap();
         assert_eq!(true, contents.contains("The popular web browser by Google (Stable Channel) test"));
+        remove_dir_all("data").await.unwrap();
     }
 }
