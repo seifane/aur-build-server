@@ -134,3 +134,4 @@ You can authenticate a request by including the API key in the `Authorization` h
 # Roadmap
 - [ ] Support applying patches on repos
 - [ ] Support repos from custom sources that are not aur (git, ...) 
+- [ ] Support restoring already built packages on start up
