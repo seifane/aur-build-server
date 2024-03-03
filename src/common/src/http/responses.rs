@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::models::PackageStatus;
+use crate::models::{Package, PackageStatus};
 
 #[derive(Serialize, Deserialize)]
 pub struct SuccessResponse {
@@ -18,9 +18,7 @@ impl SuccessResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PackageResponse {
-    pub name: String,
+    pub package: Package,
     pub status: PackageStatus,
-    pub run_before: Option<String>,
     pub last_built: Option<DateTime<Utc>>,
-    pub last_built_version: Option<String>
 }

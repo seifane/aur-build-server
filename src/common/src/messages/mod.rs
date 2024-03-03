@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::models::Package;
 use crate::models::WorkerStatus;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -8,9 +9,7 @@ pub enum WebsocketMessage {
       api_key: String,
     },
     JobSubmit {
-        package: String,
-        run_before: Option<String>,
-        last_built_version: Option<String>
+        package: Package,
     },
     WorkerStatusRequest {},
     WorkerStatusUpdate {

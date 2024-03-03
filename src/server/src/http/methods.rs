@@ -23,8 +23,9 @@ pub async fn get_workers(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl
     Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.workers.values().collect::<Vec<&Worker>>()))
 }
 
-pub async fn get_logs(package: String, log_type: String) -> Result<impl warp::Reply, Infallible> {
-    let path = PathBuf::from(format!("logs/{}_{}.log", package, log_type));
+pub async fn get_logs(package: String) -> Result<impl warp::Reply, Infallible> {
+    let path = PathBuf::from(format!("logs/{}.log", package));
+    // Prevent path traversal
     if path.components().into_iter().any(|x| x == Component::ParentDir) {
         return Ok(reply::with_status("".to_string(), StatusCode::INTERNAL_SERVER_ERROR));
     }

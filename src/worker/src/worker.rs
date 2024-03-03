@@ -4,8 +4,7 @@ use tokio::sync::mpsc::{UnboundedSender};
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::Mutex;
 use common::messages::{WebsocketMessage};
-use common::models::WorkerStatus;
-use crate::models::Package;
+use common::models::{Package, WorkerStatus};
 use crate::orchestrator::http::HttpClient;
 
 

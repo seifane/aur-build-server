@@ -5,7 +5,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
 use common::models::{PackageStatus, WorkerStatus};
 use common::messages::{WebsocketMessage};
-use crate::models::package::{Package};
+use crate::models::server_package::{ServerPackage};
 
 #[derive(Serialize)]
 pub struct Worker {
@@ -41,19 +41,17 @@ impl Worker {
         }
     }
 
-    pub fn dispatch_package(&mut self, package: &mut Package) -> Result<(), Box<dyn Error>>
+    pub fn dispatch_package(&mut self, package: &mut ServerPackage) -> Result<(), Box<dyn Error>>
     {
         self.sender.send(
             WebsocketMessage::JobSubmit {
-                package: package.name.clone(),
-                run_before: package.run_before.clone(),
-                last_built_version: package.last_built_version.clone(),
+                package: package.package.clone(),
             }
         )?;
 
         self.status = WorkerStatus::DISPATCHED;
         package.set_status(PackageStatus::BUILDING);
-        self.current_job = Some(package.name.clone());
+        self.current_job = Some(package.get_package_name().clone());
 
         Ok(())
     }

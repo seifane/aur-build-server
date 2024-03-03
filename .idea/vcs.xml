@@ -2,5 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/src/worker/data/google-chrome" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/src/worker/data/google_chrome" vcs="Git" />
   </component>
 </project>

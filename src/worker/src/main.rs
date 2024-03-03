@@ -3,8 +3,9 @@ mod errors;
 mod models;
 mod orchestrator;
 mod utils;
-mod handler;
 mod worker;
+mod logs;
+mod builder;
 
 use std::error::Error;
 use std::fs::File;

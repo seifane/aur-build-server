@@ -2,36 +2,38 @@ use async_recursion::async_recursion;
 use log::{debug, error, info};
 use srcinfo::Srcinfo;
 use tokio::process::Command;
+use common::models::Package;
 use crate::errors::PackageBuildError;
 use crate::commands::git::clone_repo;
 use crate::commands::pacman::is_package_in_repo;
-use crate::commands::write_logs;
-use crate::models::{Package, PackageBuild};
+use crate::logs::{LogSection, write_log_section};
+use crate::models::{PackageBuild};
 use crate::utils::sanitize_dependency;
 
 
 async fn handle_run_before(package: &Package) -> Result<(), PackageBuildError>{
-    if package.run_before.is_some() {
+    if let Some(run_before) = package.run_before.as_ref() {
         info!("Running run_before for {}", package.name);
         let pre_run_output = Command::new("sh")
             .arg("-c")
-            .arg(package.run_before.as_ref().unwrap()).output().await;
+            .arg(run_before).output().await;
 
         let out = pre_run_output.unwrap();
 
-        write_logs(package.name.as_str(), out.stdout.as_slice(), "stdout_run_before").unwrap_or(());
-        write_logs(package.name.as_str(), out.stderr.as_slice(), "stderr_run_before").unwrap_or(());
+        write_log_section(package.name.as_str(), LogSection::RunBeforeOut, out.stdout.as_slice()).await.unwrap();
+        write_log_section(package.name.as_str(), LogSection::RunBeforeErr, out.stderr.as_slice()).await.unwrap();
 
         let status_code = out.status;
-        if status_code.code().unwrap() != 0 {
-            error!("Failed run_before for {} with code {}", package.name, status_code.code().unwrap());
-            return Err(PackageBuildError::new(String::from("Failed run before"),Some(status_code)));
+        if status_code.code().unwrap_or(-1) != 0 {
+            let message = format!("Failed run_before for {} with code {}", package.name, status_code.code().unwrap_or(-1));
+            error!("{message}");
+            return Err(PackageBuildError::new(message, Some(status_code)));
         }
     }
     Ok(())
 }
 
-async fn build_makepkg(package_name: &String, install: bool) -> Result<(), PackageBuildError> {
+async fn build_makepkg(package_name: &String, is_dependency: bool) -> Result<(), PackageBuildError> {
     info!("Running makepkg for {}", package_name);
 
     let mut cmd = Command::new("makepkg");
@@ -40,7 +42,7 @@ async fn build_makepkg(package_name: &String, install: bool) -> Result<(), Packa
         .arg("--clean")
         .arg("--noconfirm");
 
-    if install {
+    if is_dependency {
         cmd.arg("--install").arg("--asdeps");
     }
 
@@ -48,10 +50,15 @@ async fn build_makepkg(package_name: &String, install: bool) -> Result<(), Packa
         PackageBuildError::new(format!("Error getting output of makepkg command {}", e), None)
     })?;
 
-    write_logs(package_name.as_str(), out.stdout.as_slice(), "stdout").unwrap_or(());
-    write_logs(package_name.as_str(), out.stderr.as_slice(), "stderr").unwrap_or(());
+    if is_dependency {
+        write_log_section(package_name.as_str(), LogSection::DepsOut(package_name.clone()), out.stdout.as_slice()).await.unwrap();
+        write_log_section(package_name.as_str(), LogSection::DepsErr(package_name.clone()), out.stderr.as_slice()).await.unwrap();
+    } else {
+        write_log_section(package_name.as_str(), LogSection::MakePkgOut, out.stdout.as_slice()).await.unwrap();
+        write_log_section(package_name.as_str(), LogSection::MakePkgErr, out.stderr.as_slice()).await.unwrap();
+    }
 
-    if out.status.code().is_none() || out.status.code().unwrap() != 0 {
+    if out.status.code().is_none() || out.status.code().unwrap_or(-1) != 0 {
         error!("Failed makepkg for {} with code {}", package_name, out.status.code().unwrap_or(-1));
         return Err(PackageBuildError::new(String::from("Failed makepkg"),Some(out.status)));
     }
@@ -118,7 +125,6 @@ pub async fn handle_aur_deps(deps: Vec<String>) -> Result<Vec<String>, PackageBu
 }
 
 pub async fn make_package(package: &Package) -> Result<PackageBuild, PackageBuildError> {
-    clone_repo(&package.name)?;
 
     let src_info = get_src_info(&package.name).await.map_err(|e| {
         PackageBuildError::new(format!("Failed to get src info {}", e.to_string()), None)
@@ -138,7 +144,6 @@ pub async fn make_package(package: &Package) -> Result<PackageBuild, PackageBuil
     handle_run_before(&package).await?;
 
     let installed_deps = handle_aur_deps(extract_aur_deps(&src_info).await).await?;
-
     info!("Installed additional deps {:?}", installed_deps);
 
     build_makepkg(&package.name, false).await?;

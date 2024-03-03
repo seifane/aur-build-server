@@ -16,9 +16,9 @@ pub fn packages_list(api: &Api) {
 
         println!(
             "{} [{}] {} {}",
-            i.name.bold(),
+            i.package.name.bold(),
             package_status_to_colored_string(&i.status),
-            i.last_built_version.as_ref().unwrap_or(&"".to_string()).blue().bold(),
+            i.package.last_built_version.as_ref().unwrap_or(&"".to_string()).blue().bold(),
             formatted_date
         );
     }

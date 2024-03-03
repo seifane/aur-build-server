@@ -10,7 +10,7 @@ use tokio::time::sleep;
 use common::models::WorkerStatus;
 use common::models::PackageStatus;
 use crate::models::config::Config;
-use crate::models::package::{Package};
+use crate::models::server_package::{ServerPackage};
 use crate::models::worker::Worker;
 
 pub struct Orchestrator {
@@ -18,7 +18,7 @@ pub struct Orchestrator {
     pub sign: bool,
 
     pub workers: HashMap<usize, Worker>,
-    pub packages: Vec<Package>,
+    pub packages: Vec<ServerPackage>,
 
     is_running: Arc<AtomicBool>,
     rebuild_interval: Option<u64>,
@@ -30,8 +30,8 @@ impl Orchestrator {
         let mut packages = Vec::new();
 
         for package in config.packages.iter() {
-            let package = Package::from_package_config(package);
-            debug!("Loaded package {}", package.name);
+            let package = ServerPackage::from_package_config(package);
+            debug!("Loaded package {}", package.get_package_name());
             packages.push(package);
         }
 
@@ -67,7 +67,7 @@ impl Orchestrator {
                         let elapsed = Utc::now().signed_duration_since(last_build);
 
                         if elapsed > Duration::seconds(rebuild_time as i64) && package.status == PackageStatus::BUILT {
-                            info!("Scheduled rebuild of package {}", package.name.as_str());
+                            info!("Scheduled rebuild of package {}", package.get_package_name());
                             should_rebuild = true;
                         }
                     }
@@ -91,7 +91,7 @@ impl Orchestrator {
         }
 
         if let Some(worker_id) = worker_id {
-            info!("Dispatch {} to worker {}", package.name, worker_id);
+            info!("Dispatch {} to worker {}", package.get_package_name(), worker_id);
             let worker = self.workers.get_mut(&worker_id).unwrap();
             worker.dispatch_package(package)?;
         }
@@ -100,7 +100,7 @@ impl Orchestrator {
 
     pub fn set_package_status(&mut self, package_name: &String, status: PackageStatus) {
         for package in self.packages.iter_mut() {
-            if package.name.eq(package_name) {
+            if package.get_package_name().eq(package_name) {
                 package.set_status(status);
                 return;
             }
@@ -123,9 +123,9 @@ impl Orchestrator {
         version: Option<String>,
     ) {
         for package in self.packages.iter_mut() {
-            if package.name.eq(package_name) {
+            if package.get_package_name().eq(package_name) {
                 package.last_built = time;
-                package.last_built_version = version;
+                package.package.last_built_version = version;
                 return;
             }
         }

@@ -20,24 +20,6 @@ impl Config {
 }
 
 #[derive(Clone)]
-pub struct Package {
-    pub name: String,
-    pub run_before: Option<String>,
-    pub last_built_version: Option<String>
-}
-
-impl Package {
-    pub fn new(name: &String, run_before: &Option<String>, last_built_version: &Option<String>) -> Package
-    {
-        Package {
-            name: name.clone(),
-            run_before: run_before.clone(),
-            last_built_version: last_built_version.clone()
-        }
-    }
-}
-
-#[derive(Clone)]
 pub struct PackageBuild {
     pub built: bool,
     pub version: String,

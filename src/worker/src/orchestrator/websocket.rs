@@ -10,8 +10,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tokio_tungstenite::tungstenite::Message;
 use common::messages::WebsocketMessage;
-use crate::handler::process_package;
-use crate::models::Package;
+use crate::builder::process_package;
 use crate::worker::Worker;
 
 pub type WebsocketReceiveStream = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
@@ -45,11 +44,11 @@ pub async fn connect(url: String, api_key: &String) -> (JoinHandle<()>, Unbounde
 
 async fn handle_message(message: &WebsocketMessage, worker: Arc<RwLock<Worker>>) {
     match message {
-        WebsocketMessage::JobSubmit { package, run_before, last_built_version } => {
+        WebsocketMessage::JobSubmit { package} => {
             if worker.read().await.current_package.is_some() {
                 return;
             }
-            worker.write().await.set_current_package(Some(Package::new(package, run_before, last_built_version)));
+            worker.write().await.set_current_package(Some(package.clone()));
             tokio::task::spawn(process_package(worker.clone()));
         }
         WebsocketMessage::WorkerStatusRequest { .. } => {

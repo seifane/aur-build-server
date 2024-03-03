@@ -76,9 +76,8 @@ pub async fn start_http(
         .and(with_auth(config.api_key.clone()))
         .untuple_one()
         .and(warp::path::param())
-        .and(warp::path::param())
         .and(warp::get())
-        .and_then(move |package: String, log_type: String| get_logs(package, log_type));
+        .and_then(move |package: String| get_logs(package));
 
     let post_rebuild_packages = api_routes.and(warp::path("rebuild"))
         .and(with_auth(config.api_key.clone()))

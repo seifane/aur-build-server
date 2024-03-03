@@ -4,6 +4,14 @@ use log::info;
 use reqwest::multipart::{Form, Part};
 use tokio::fs::read_dir;
 
+/// Removes version requirements on dependency strings.
+/// This is used to get the name of the dependency to determine if it is available on repo or has to be fetched on AUR.
+///
+/// # Arguments
+///
+/// * `dep`: The dependency requirement as a String
+///
+/// returns: String
 pub fn sanitize_dependency(dep: &str) -> String {
     let mut char_index = 0;
     for c in vec![">", "<", "="] {
@@ -32,7 +40,7 @@ pub async fn add_package_files_to_form_data(package_name: &String, mut form: For
                 Part::bytes(content)
                     .file_name(file.file_name().into_string().unwrap())
             );
-            info!("Uploading package file {}", file.file_name().to_str().unwrap_or(""))
+            info!("Uploading package file {}", file.file_name().to_str().unwrap())
         }
     }
 
