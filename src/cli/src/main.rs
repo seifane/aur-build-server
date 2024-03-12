@@ -46,7 +46,7 @@ fn main() {
                 PackageCommands::Rebuild { packages } => packages_rebuild(&api, packages),
             }
         }
-        Commands::Logs { package, log_type } => logs_get(&api, package, log_type),
+        Commands::Logs { package} => logs_get(&api, package),
         Commands::Profiles { command } => {
             match command {
                 ProfileCommands::List {} => profile_list(&profile_config),

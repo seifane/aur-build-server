@@ -23,7 +23,6 @@ pub enum LogSection {
     DepsErr(String),
     MakePkgOut,
     MakePkgErr,
-    BuildError,
 }
 
 impl LogSection {
@@ -36,7 +35,6 @@ impl LogSection {
             LogSection::DepsErr(name) => format!("Dependency {name} StdErr"),
             LogSection::MakePkgOut => "MakePkg StdOut".to_string(),
             LogSection::MakePkgErr => "MakePkg StdErr".to_string(),
-            LogSection::BuildError => "Build Error".to_string()
         };
 
         format!("----------------------------\n{message}\n----------------------------\n")

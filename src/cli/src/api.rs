@@ -51,9 +51,9 @@ impl Api {
         Ok(response)
     }
 
-    pub fn get_logs(&self, package: &String, log_type: &String) -> Result<String, Box<dyn Error>>
+    pub fn get_logs(&self, package: &String) -> Result<String, Box<dyn Error>>
     {
-        let response: String = self.client.get(format!("{}/api/logs/{}/{}", self.host, package, log_type))
+        let response: String = self.client.get(format!("{}/api/logs/{}", self.host, package))
             .send()?.text()?;
 
         Ok(response)

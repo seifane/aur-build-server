@@ -40,12 +40,11 @@ pub fn packages_rebuild(api: &Api, packages: Vec<String>) {
     }
 }
 
-pub fn logs_get(api: &Api, package: String, log_type: String) {
-    let res = api.get_logs(&package, &log_type);
+pub fn logs_get(api: &Api, package: String) {
+    let res = api.get_logs(&package);
     match res {
         Ok(contents) => {
-            println!("Logs for {} {}", package, log_type);
-            println!("------------------------------------");
+            println!("Logs for {package}");
             println!("{}", contents);
         }
         Err(err) => {

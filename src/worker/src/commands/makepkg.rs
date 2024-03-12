@@ -3,6 +3,7 @@ use log::{debug, error, info};
 use srcinfo::Srcinfo;
 use tokio::process::Command;
 use common::models::Package;
+use crate::commands::CommandResult;
 use crate::errors::PackageBuildError;
 use crate::commands::git::clone_repo;
 use crate::commands::pacman::is_package_in_repo;
@@ -33,7 +34,7 @@ async fn handle_run_before(package: &Package) -> Result<(), PackageBuildError>{
     Ok(())
 }
 
-async fn build_makepkg(package_name: &String, is_dependency: bool) -> Result<(), PackageBuildError> {
+async fn build_makepkg(package_name: &String, is_dependency: bool) -> Result<CommandResult, PackageBuildError> {
     info!("Running makepkg for {}", package_name);
 
     let mut cmd = Command::new("makepkg");
@@ -50,20 +51,7 @@ async fn build_makepkg(package_name: &String, is_dependency: bool) -> Result<(),
         PackageBuildError::new(format!("Error getting output of makepkg command {}", e), None)
     })?;
 
-    if is_dependency {
-        write_log_section(package_name.as_str(), LogSection::DepsOut(package_name.clone()), out.stdout.as_slice()).await.unwrap();
-        write_log_section(package_name.as_str(), LogSection::DepsErr(package_name.clone()), out.stderr.as_slice()).await.unwrap();
-    } else {
-        write_log_section(package_name.as_str(), LogSection::MakePkgOut, out.stdout.as_slice()).await.unwrap();
-        write_log_section(package_name.as_str(), LogSection::MakePkgErr, out.stderr.as_slice()).await.unwrap();
-    }
-
-    if out.status.code().is_none() || out.status.code().unwrap_or(-1) != 0 {
-        error!("Failed makepkg for {} with code {}", package_name, out.status.code().unwrap_or(-1));
-        return Err(PackageBuildError::new(String::from("Failed makepkg"),Some(out.status)));
-    }
-
-    Ok(())
+    Ok(CommandResult::from_output(out))
 }
 
 pub async fn get_src_info(package_name: &String) -> Result<Srcinfo, PackageBuildError>
@@ -94,14 +82,14 @@ pub async fn extract_aur_deps(srcinfo: &Srcinfo) -> Vec<String>
         }
     }
 
-    debug!("Installing aur dependencies for {} {:?}", srcinfo.base.pkgbase, deps);
+    debug!("Found AUR dependencies for {} {:?}", srcinfo.base.pkgbase, deps);
 
     deps.dedup();
     deps
 }
 
 #[async_recursion]
-pub async fn handle_aur_deps(deps: Vec<String>) -> Result<Vec<String>, PackageBuildError>
+pub async fn handle_aur_deps(package: &Package, deps: Vec<String>) -> Result<Vec<String>, PackageBuildError>
 {
     let mut added_deps = Vec::new();
     for dep in deps.iter() {
@@ -113,9 +101,17 @@ pub async fn handle_aur_deps(deps: Vec<String>) -> Result<Vec<String>, PackageBu
         })?;
 
         let deps_of_dep = extract_aur_deps(&src_info).await;
-        let mut installed = handle_aur_deps(deps_of_dep).await?;
+        let mut installed = handle_aur_deps(package, deps_of_dep).await?;
 
-        build_makepkg(&dep, true).await?;
+        let result = build_makepkg(&dep, true).await?;
+
+        write_log_section(package.name.as_str(), LogSection::DepsOut(dep.clone()), result.stdout.as_bytes()).await.unwrap();
+        write_log_section(package.name.as_str(), LogSection::DepsErr(dep.clone()), result.stderr.as_bytes()).await.unwrap();
+
+        if !result.success() {
+            error!("Failed makepkg for {} AUR dependency for {} with code {}, check build logs for full output", dep, package.name, result.status.code().unwrap_or(-1));
+            return Err(PackageBuildError::new(String::from("Failed makepkg"), Some(result.status)));
+        }
 
         added_deps.append(&mut installed);
         added_deps.push(dep.clone());
@@ -143,10 +139,12 @@ pub async fn make_package(package: &Package) -> Result<PackageBuild, PackageBuil
 
     handle_run_before(&package).await?;
 
-    let installed_deps = handle_aur_deps(extract_aur_deps(&src_info).await).await?;
+    let installed_deps = handle_aur_deps(package, extract_aur_deps(&src_info).await).await?;
     info!("Installed additional deps {:?}", installed_deps);
 
-    build_makepkg(&package.name, false).await?;
+    let result = build_makepkg(&package.name, false).await?;
+    write_log_section(package.name.as_str(), LogSection::MakePkgOut, result.stdout.as_bytes()).await.unwrap();
+    write_log_section(package.name.as_str(), LogSection::MakePkgErr, result.stderr.as_bytes()).await.unwrap();
 
     Ok(PackageBuild::new(true, version, installed_deps))
 }

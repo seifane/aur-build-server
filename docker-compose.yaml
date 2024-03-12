@@ -1,9 +1,12 @@
 services:
   server:
+    image: aur-build-server:local
     build:
       context: .
       dockerfile: Dockerfile
       target: server
+      cache_from:
+        - aur-build-server:local
     command: --log-level debug
     environment:
       - SIGN_KEY_PATH=/key.asc
@@ -15,10 +18,13 @@ services:
       - "./mount/serve:/app/serve"
       - "./config/key.asc:/key.asc"
   worker:
+    image: aur-build-worker:local
     build:
       context: .
       dockerfile: Dockerfile
       target: worker
+      cache_from:
+        - aur-build-server:local
     command: --log-level debug
     volumes:
       - "./config_worker.json:/app/config_worker.json"

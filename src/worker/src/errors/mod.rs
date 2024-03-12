@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::fmt;
-use std::process::ExitStatus;
+use std::process::{ExitStatus};
 
 #[derive(Debug, Clone)]
 pub struct PackageBuildError{

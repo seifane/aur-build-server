@@ -25,10 +25,9 @@ pub enum Commands {
         #[command(subcommand)]
         command: PackageCommands
     },
-    /// <package> <log_type> Fetch the logs for the given package and type.
+    /// <package> Fetch the logs for the given package.
     Logs {
         package: String,
-        log_type: String
     },
     /// Profile related commands. list, create, delete, set-default.
     Profiles {

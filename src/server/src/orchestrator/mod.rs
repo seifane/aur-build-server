@@ -60,7 +60,7 @@ impl Orchestrator {
                     if let Some(last_build) = package.last_built {
                         let elapsed = Utc::now().signed_duration_since(last_build);
 
-                        if elapsed > Duration::seconds(rebuild_time as i64) && package.status == PackageStatus::BUILT {
+                        if elapsed > Duration::try_seconds(rebuild_time as i64).unwrap() && package.status == PackageStatus::BUILT {
                             info!("Scheduled rebuild of package {}", package.get_package_name());
                             should_rebuild = true;
                         }

@@ -1,3 +1,5 @@
+extern crate core;
+
 mod commands;
 mod errors;
 mod models;
