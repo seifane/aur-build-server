@@ -52,6 +52,7 @@ pub fn apply_patch(repository: &Repository, content: &String) -> Result<(), Box<
     let diff = Diff::from_buffer(content.as_bytes())?;
     let mut apply_opts = git2::ApplyOptions::new();
     apply_opts.check(false);
+
     repository.apply(
         &diff,
         git2::ApplyLocation::WorkDir,
@@ -82,7 +83,7 @@ pub fn clone_repo(repo_name: &String) -> Result<Repository, PackageBuildError> {
 
 #[cfg(test)]
 mod tests {
-    use tokio::fs::{read_to_string, remove_dir, remove_dir_all};
+    use tokio::fs::{read_to_string, remove_dir_all};
     use common::models::{Package, PackagePatch};
     use crate::commands::git::{apply_patches, clone_repo};
 
@@ -95,8 +96,8 @@ mod tests {
             run_before: None,
             patches: vec![
                 PackagePatch {
-                    url: "https://gist.githubusercontent.com/seifane/34dd56a4e49f457309288a47f861acaf/raw/62d4dffcccc318ee6a8cbf17c55362ef8573bd5c/gistfile1.txt".to_string(),
-                    sha512: Some("1e0d86ec990133f8d542be9d87883d7b314b45b42486393995e7454f523244da7a7be1b092100a3019cdfba57eb3124e2a6bca9ca49ee34c04675451000bd77f".to_string()),
+                    url: "https://gist.githubusercontent.com/seifane/d1b04045a02452ada1fe894d18e2c2aa/raw/bc01f21fc579164d69dff0191685647d81d4b27e/gistfile1.txt".to_string(),
+                    sha512: Some("cb8e7696fb1ff4fd6ed0d5200b2665c470aaf1ed2f67e0b73762b242327bdde34512afcf728151656d3442579e655465fc6d6fb89ff4412fad16357eb9c7632a".to_string()),
                 }
             ],
             last_built_version: None,
