@@ -1,11 +1,16 @@
 {
   "repo_name": "aurbuild",
-  "sign": false,
+  "sign_key": "1DBB6F2B90D7CD9DE67A0594084D53C576E33D37",
   "api_key": "changeme",
+  "rebuild_time": 86400,
   "packages": [
     {
-      "name": "google-chrome"
-    },
+      "name": "google-chrome",
+      "patches": {
+        "url": "https://gist.githubusercontent.com/seifane/d1b04045a02452ada1fe894d18e2c2aa/raw/bc01f21fc579164d69dff0191685647d81d4b27e/gistfile1.txt",
+        "sha512": "cb8e7696fb1ff4fd6ed0d5200b2665c470aaf1ed2f67e0b73762b242327bdde34512afcf728151656d3442579e655465fc6d6fb89ff4412fad16357eb9c7632a"
+      }
+    }
     {
       "name": "tor-browser",
       "run_before": "gpg --auto-key-locate nodefault,wkd --locate-keys torbrowser@torproject.org"

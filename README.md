@@ -3,14 +3,14 @@
 ## Goal
 
 This project aims to provide an external package building server based on any PKGBUILD based project.
-Right now it pulls AUR packages builds them with makepkg and serves them on a custom Arch repo.
+Right now, it pulls AUR packages, builds them with makepkg and serves them on a custom Arch repo.
 
 ## Building
 
 ```bash
 cargo build
 ```
-Should build all binaries `aur-build-server`, `aur-build-worker`.
+Should build all binaries `aur-build-server`, `aur-build-worker`, `aur-build-cli`.
 
 # Running
 
@@ -24,6 +24,8 @@ The server will dispatch packages to be built to connected workers and receive t
 
 ## Worker
 The worker connects to the server and await instructions to build packages. It is strictly in charge of building of the packages.
+It loads the configuration from `config_worker.json` by default.
+
 Once it is done with the build it will upload the artifacts back to the server.
 You can have any numbers of workers at any time connected to the server. This allows to scale the number available workers based on the size of the repo you're building.
 
@@ -79,7 +81,7 @@ Usage: aur-build-cli [OPTIONS] <COMMAND>
 
 Commands:
   packages  Packages related commands. list, rebuild
-  logs      <package> <log_type> Fetch the logs for the given package and type
+  logs      <package> Fetch the logs for the given package
   profiles  Profile related commands. list, create, delete, set-default
   help      Print this message or the help of the given subcommand(s)
 
@@ -111,7 +113,7 @@ You can authenticate a request by including the API key in the `Authorization` h
 ### Server
 
 - `repo_name` (required) : The name of the repo that will be used for repo-add.
-- `sign` (optional) : ID of the GPG key that the server should use when trying to sign the packages and the repo.
+- `sign_key` (optional) : ID of the GPG key that the server should use when trying to sign the packages and the repo.
 - `api_key` (required) : The api key that will be used to authenticate workers and api consumers.
 - `rebuild_time` (optional) : The amount of seconds to wait before trying to rebuild a package. If none is given packages will not be automatically rebuilt.
 - `packages` (required) : The packages that should be built.
@@ -133,7 +135,22 @@ In the server configuration fill in the key ID and the server will try to sign b
 - `base_url_ws` (required) : The base url websocket of the server
 - `api_key` (required) : The api key used to authenticate on the server
 
+# Pacman configuration
+
+To add the custom repository to your pacman configuration you can simply append the following section to your `/etc/pacman.conf` file.
+
+```text
+[aurbuild]
+Server = http://your-server-domain-or-ip/repo
+```
+
+Make sure to replace `aurbuild` with the name you put in the server configuration under `repo_name`.
+
+If you do not enable signing you will need to add the following to disable signature checking.
+```text
+SigLevel = Optional TrustAll
+```
+
 # Roadmap
-- [x] Support applying patches on repos
+- [ ] Support restoring already built packages on start up (High priority)
 - [ ] Support repos from custom sources that are not aur (git, ...) 
-- [ ] Support restoring already built packages on start up
