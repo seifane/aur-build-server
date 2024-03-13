@@ -1,7 +1,7 @@
 # Maintainer: Seifane Idouchach <seifane53@gmail.com>
 
 pkgname=aur-build-cli
-pkgver=0.9.2
+pkgver=0.10.0
 pkgrel=1
 epoch=
 pkgdesc="CLI utility for aur-build-server"
@@ -16,7 +16,7 @@ optdepends=()
 provides=('aur-build-cli')
 replaces=()
 backup=()
-options=()
+options=('!debug')
 install=
 changelog=
 source=(git+https://github.com/seifane/aur-build-server.git#tag=$pkgver)

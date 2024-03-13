@@ -1,10 +1,10 @@
 # Maintainer: Seifane Idouchach <seifane53@gmail.com>
 
 pkgname=aur-build-server
-pkgver=0.9.2
+pkgver=0.10.0
 pkgrel=1
 epoch=
-pkgdesc="Worker for for aur-build-server"
+pkgdesc="Orchestrator for aur-build-server"
 arch=('any')
 url="https://github.com/seifane/aur-build-server"
 license=('GPL')
@@ -16,7 +16,7 @@ optdepends=()
 provides=('aur-build-cli')
 replaces=()
 backup=()
-options=()
+options=('!debug')
 install=
 changelog=
 source=(git+https://github.com/seifane/aur-build-server.git#tag=$pkgver)

@@ -1,22 +1,22 @@
 # Maintainer: Seifane Idouchach <seifane53@gmail.com>
 
 pkgname=aur-build-worker
-pkgver=0.9.2
+pkgver=0.10.0
 pkgrel=1
 epoch=
-pkgdesc="Worker for for aur-build-server"
+pkgdesc="Worker for aur-build-server"
 arch=('any')
 url="https://github.com/seifane/aur-build-server"
 license=('GPL')
 groups=()
-depends=()
+depends=('git' 'libgit2' 'libssh2' 'openssl-1.1')
 makedepends=('cargo')
 checkdepends=()
 optdepends=()
 provides=('aur-build-cli')
 replaces=()
 backup=()
-options=()
+options=('!lto' '!debug')
 install=
 changelog=
 source=(git+https://github.com/seifane/aur-build-server.git#tag=$pkgver)
