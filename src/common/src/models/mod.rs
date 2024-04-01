@@ -13,7 +13,7 @@ pub struct Package {
     pub last_built_version: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
 pub enum PackageStatus {
     PENDING,
     BUILDING,

@@ -30,6 +30,8 @@ pub struct Config {
     pub rebuild_time: Option<u64>,
     pub packages: Vec<PackageConfig>,
 
+    pub serve_path: Option<String>,
+
     port: Option<u16>,
 }
 
@@ -47,5 +49,11 @@ impl Config {
     pub fn get_port(&self) -> u16
     {
         self.port.unwrap_or(8888)
+    }
+    
+    pub fn get_serve_path(&self) -> String
+    {
+        let path = self.serve_path.clone().unwrap_or("serve/".to_string());
+        path.trim().trim_end_matches("/").to_string()
     }
 }
