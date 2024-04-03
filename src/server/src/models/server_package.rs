@@ -1,52 +1,56 @@
 use log::info;
 use serde::{Deserialize, Serialize};
-use chrono::DateTime;
-use chrono::offset::Utc;
 use common::http::responses::{PackageResponse};
-use common::models::{Package, PackageStatus};
-use crate::models::config::PackageConfig;
+use common::models::{PackageDefinition, PackageJob, PackageStatus};
+use crate::models::package_state::PackageState;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServerPackage {
-    pub package: Package,
-    pub status: PackageStatus,
-    pub last_built: Option<DateTime<Utc>>,
-    pub files: Vec<String>,
+    package: PackageDefinition,
+    pub state: PackageState,
 }
 
 impl ServerPackage {
-    pub fn from_package_config(package_config: &PackageConfig) -> ServerPackage {
+    pub fn from_package_definition(package_config: PackageDefinition) -> ServerPackage {
         ServerPackage {
-            package: package_config.to_package(),
-            status: PackageStatus::PENDING,
-            last_built: None,
-            files: Vec::new(),
+            package: package_config,
+            state: PackageState::new(),
         }
-    }
-
-    pub fn set_status(&mut self, status: PackageStatus) {
-        info!("Package {} status changed to {:?}", self.package.name, status);
-        self.status = status;
     }
 
     pub fn get_package_name(&self) -> &String {
         &self.package.name
     }
 
-    pub fn to_response(&self) -> PackageResponse
+    pub fn set_status(&mut self, status: PackageStatus) {
+        info!("Package {} status changed to {:?}", self.package.name, status);
+        self.state.status = status;
+    }
+
+    pub fn get_state(&self) -> &PackageState
+    {
+        &self.state
+    }
+
+    pub fn set_state(&mut self, state: PackageState)
+    {
+        self.state = state;
+    }
+
+    pub fn get_response(&self) -> PackageResponse
     {
         PackageResponse {
             package: self.package.clone(),
-            status: self.status.clone(),
-            last_built: self.last_built.clone(),
+            status: self.state.status,
+            last_built: self.state.last_built.clone(),
+            last_built_version: self.state.last_built_version.clone(),
         }
     }
 
-    pub fn restore_state(&mut self, from: &ServerPackage)
-    {
-        self.status = from.status;
-        self.files = from.files.clone();
-        self.last_built = from.last_built;
-        self.package.last_built_version = from.package.last_built_version.clone();
+    pub fn get_package_job(&self) -> PackageJob {
+        PackageJob {
+            definition: self.package.clone(),
+            last_built_version: self.state.last_built_version.clone(),
+        }
     }
 }

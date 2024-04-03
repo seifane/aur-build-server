@@ -7,21 +7,20 @@ use warp::multipart::FormData;
 use warp::{reply};
 use warp::http::StatusCode;
 use common::http::payloads::PackageRebuildPayload;
-use common::http::responses::{SuccessResponse};
+use common::http::responses::{SuccessResponse, WorkerResponse};
 use common::models::PackageStatus;
 use crate::http::util::MultipartField::{File, Text};
 use crate::http::util::parse_multipart;
-use crate::models::worker::Worker;
 use crate::orchestrator::Orchestrator;
 use crate::orchestrator::state::PackageBuildData;
 use crate::utils::repo::{Repo};
 
 pub async fn get_packages(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible> {
-    Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.state.get_packages().iter().map(|i| i.to_response()).collect::<Vec<_>>()))
+    Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.state.get_packages().iter().map(|i| i.1.get_response()).collect::<Vec<_>>()))
 }
 
 pub async fn get_workers(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible> {
-    Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.workers.values().collect::<Vec<&Worker>>()))
+    Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.workers.values().map(|it| it.to_http_response()).collect::<Vec<WorkerResponse>>()))
 }
 
 pub async fn get_logs(package: String) -> Result<impl warp::Reply, Infallible> {

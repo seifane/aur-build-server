@@ -9,7 +9,7 @@ use clap::Parser;
 use colored::Colorize;
 use crate::api::Api;
 use crate::args::{Args, Commands, PackageCommands, ProfileCommands};
-use crate::commands::{logs_get, packages_list, packages_rebuild, profile_create, profile_delete, profile_list, profile_set_default};
+use crate::commands::{logs_get, packages_list, packages_rebuild, profile_create, profile_delete, profile_list, profile_set_default, workers_list};
 use crate::profile::ProfileConfig;
 
 fn get_api(args: &Args, profile_config: &ProfileConfig) -> Api {
@@ -45,6 +45,10 @@ fn main() {
     let mut profile_config = ProfileConfig::from_file().expect("Unable to load profile config");
 
     match &args.command {
+        Commands::Workers {} => {
+            let api = get_api(&args, &profile_config);
+            workers_list(&api)
+        },
         Commands::Packages { command } => {
             let api = get_api(&args, &profile_config);
             match command {

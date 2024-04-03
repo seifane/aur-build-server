@@ -1,20 +1,25 @@
-use colored::{ColoredString, Colorize};
-use common::models::PackageStatus;
+use cli_table::Color;
+use common::models::{PackageStatus, WorkerStatus};
 
-pub fn package_status_to_colored_string(status: &PackageStatus) -> ColoredString
+pub fn get_color_from_worker_status(status: &WorkerStatus) -> Option<Color>
 {
     match status {
-        PackageStatus::PENDING => {
-            "Pending".to_string().magenta().bold()
-        }
-        PackageStatus::BUILDING => {
-            "Building".to_string().yellow().bold()
-        }
-        PackageStatus::BUILT => {
-            "Built".to_string().green().bold()
-        }
-        PackageStatus::FAILED => {
-            "Failed".to_string().red().bold()
-        }
+        WorkerStatus::UNKNOWN => Some(Color::Red),
+        WorkerStatus::STANDBY => Some(Color::Green),
+        WorkerStatus::DISPATCHED => Some(Color::Magenta),
+        WorkerStatus::UPDATING => Some(Color::Magenta),
+        WorkerStatus::WORKING => Some(Color::Cyan),
+        WorkerStatus::UPLOADING => Some(Color::Blue),
+        WorkerStatus::CLEANING => Some(Color::Yellow)
+    }
+}
+
+pub fn get_color_from_package_status(status: &PackageStatus) -> Option<Color>
+{
+    match status {
+        PackageStatus::PENDING => Some(Color::Magenta),
+        PackageStatus::BUILDING => Some(Color::Yellow),
+        PackageStatus::BUILT => Some(Color::Green),
+        PackageStatus::FAILED => Some(Color::Red)
     }
 }

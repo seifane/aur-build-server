@@ -1,27 +1,59 @@
+use cli_table::{Cell, Style, Table};
 use colored::Colorize;
 use dialoguer::Input;
 use dialoguer::theme::ColorfulTheme;
 use crate::api::Api;
 use crate::profile::{Profile, ProfileConfig};
-use crate::utils::package_status_to_colored_string;
+use crate::utils::{get_color_from_package_status, get_color_from_worker_status};
+
+pub fn workers_list(api: &Api) {
+    let workers_res = api.get_workers().unwrap();
+    println!("Workers");
+    let mut rows = Vec::new();
+    for worker in workers_res.iter() {
+        rows.push(vec![
+            worker.id.cell(),
+            worker.status.to_string().cell().foreground_color(get_color_from_worker_status(&worker.status)),
+            worker.current_job.as_ref().unwrap_or(&"None".to_string()).as_str().cell(),
+        ]);
+    }
+    println!("{}", rows.table()
+        .title(vec![
+            "ID".cell().bold(true),
+            "Status".cell().bold(true),
+            "Current Job".cell().bold(true),
+        ])
+        .display()
+        .unwrap())
+}
 
 pub fn packages_list(api: &Api) {
     let packages_res = api.get_packages().unwrap();
 
-    for i in packages_res.iter() {
+    let mut rows = Vec::new();
+    for package in packages_res.iter() {
         let mut formatted_date = String::new();
-        if let Some(datetime) = i.last_built {
+        if let Some(datetime) = package.last_built {
             formatted_date = datetime.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
         }
 
-        println!(
-            "{} [{}] {} {}",
-            i.package.name.bold(),
-            package_status_to_colored_string(&i.status),
-            i.package.last_built_version.as_ref().unwrap_or(&"".to_string()).blue().bold(),
-            formatted_date
-        );
+        rows.push(vec![
+            (&package.package.name).cell(),
+            package.status.to_string().cell().foreground_color(get_color_from_package_status(&package.status)),
+            package.last_built_version.as_ref().unwrap_or(&"None".to_string()).cell(),
+            formatted_date.cell()
+        ]);
+
     }
+    println!("{}", rows.table()
+        .title(vec![
+            "Name".cell().bold(true),
+            "Status".cell().bold(true),
+            "Last Built version".cell().bold(true),
+            "Last Built date".cell().bold(true),
+        ])
+        .display()
+        .unwrap());
 }
 
 pub fn packages_rebuild(api: &Api, packages: Vec<String>) {
@@ -72,7 +104,7 @@ pub fn profile_create(config: &mut ProfileConfig) {
     let res = config.add_profile(Profile {
         name,
         base_url,
-        api_key
+        api_key,
     });
 
     if let Err(err) = res {
@@ -116,3 +148,4 @@ pub fn profile_set_default(config: &mut ProfileConfig, name: &String)
 
     println!("Default profile set");
 }
+

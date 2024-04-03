@@ -5,7 +5,7 @@ use git2::{Diff, ObjectType, Repository};
 use log::{error, info};
 use reqwest::Client;
 use sha2::{Digest, Sha512};
-use common::models::{Package, PackagePatch};
+use common::models::{PackageJob, PackagePatch};
 use crate::errors::PackageBuildError;
 
 fn get_current_commit_id(repo: &Repository) -> Result<String, git2::Error> {
@@ -35,15 +35,18 @@ pub async fn fetch_patch(patch: &PackagePatch) -> Result<String, Box<dyn Error +
     Ok(content)
 }
 
-pub async fn apply_patches(package: &Package, repository: Repository) -> Result<(), Box<dyn Error + Send + Sync>>
+pub async fn apply_patches(package: &PackageJob, repository: Repository) -> Result<(), Box<dyn Error + Send + Sync>>
 {
-    for patch in package.patches.iter() {
-        info!("Applying patch {} on {} ...", patch.url, package.name);
-        let patch_content = fetch_patch(patch).await?;
-        info!("Patch content : '{}'", patch_content);
-        apply_patch(&repository, &patch_content)?;
-        info!("Patch is applied !");
+    if let Some(patches) = package.definition.patches.as_ref() {
+        for patch in patches {
+            info!("Applying patch {} on {} ...", patch.url, package.definition.name);
+            let patch_content = fetch_patch(patch).await?;
+            info!("Patch content : '{}'", patch_content);
+            apply_patch(&repository, &patch_content)?;
+            info!("Patch is applied !");
+        }
     }
+
     Ok(())
 }
 
@@ -84,22 +87,24 @@ pub fn clone_repo(repo_name: &String) -> Result<Repository, PackageBuildError> {
 #[cfg(test)]
 mod tests {
     use tokio::fs::{read_to_string, remove_dir_all};
-    use common::models::{Package, PackagePatch};
+    use common::models::{PackageDefinition, PackageJob, PackagePatch};
     use crate::commands::git::{apply_patches, clone_repo};
 
     #[tokio::test]
     async fn clone_and_patch() {
         let repo = clone_repo(&"google-chrome".to_string()).unwrap();
 
-        let package = Package {
-            name: "google-chrome".to_string(),
-            run_before: None,
-            patches: vec![
-                PackagePatch {
-                    url: "https://gist.githubusercontent.com/seifane/d1b04045a02452ada1fe894d18e2c2aa/raw/bc01f21fc579164d69dff0191685647d81d4b27e/gistfile1.txt".to_string(),
-                    sha512: Some("cb8e7696fb1ff4fd6ed0d5200b2665c470aaf1ed2f67e0b73762b242327bdde34512afcf728151656d3442579e655465fc6d6fb89ff4412fad16357eb9c7632a".to_string()),
-                }
-            ],
+        let package = PackageJob {
+            definition: PackageDefinition {
+                name: "google-chrome".to_string(),
+                run_before: None,
+                patches: Some(vec![
+                    PackagePatch {
+                        url: "https://gist.githubusercontent.com/seifane/d1b04045a02452ada1fe894d18e2c2aa/raw/bc01f21fc579164d69dff0191685647d81d4b27e/gistfile1.txt".to_string(),
+                        sha512: Some("cb8e7696fb1ff4fd6ed0d5200b2665c470aaf1ed2f67e0b73762b242327bdde34512afcf728151656d3442579e655465fc6d6fb89ff4412fad16357eb9c7632a".to_string()),
+                    }
+                ])
+            },
             last_built_version: None,
         };
 

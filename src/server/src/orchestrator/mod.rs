@@ -25,7 +25,7 @@ impl Orchestrator {
     pub fn from_config(config: &Config) -> Orchestrator {
         Orchestrator {
             workers: HashMap::new(),
-            state: State::restore(config),
+            state: State::new(config),
 
             is_running: Arc::new(AtomicBool::from(false)),
             rebuild_interval: config.rebuild_time,
@@ -55,11 +55,7 @@ impl Orchestrator {
 
     pub fn rebuild_all_packages(&mut self)
     {
-        for package in self.state.get_packages_mut().iter_mut() {
-            if package.status != PackageStatus::BUILDING {
-                package.set_status(PackageStatus::PENDING);
-            }
-        }
+        self.state.set_all_packages_pending();
     }
 
     pub fn try_authenticate_worker(&mut self, worker_id: &usize, submitted_key: String) -> bool {
@@ -104,6 +100,14 @@ impl Orchestrator {
 
     pub async fn dispatch_loop(orchestrator: Arc<RwLock<Orchestrator>>) {
         let is_running = orchestrator.read().await.is_running.clone();
+
+        {
+            let res = orchestrator.write().await.state.restore();
+            match res {
+                Ok(_) => info!("Restored state for packages"),
+                Err(e) => error!("Failed to restore state for packages: {:?}", e)
+            };
+        }
 
         is_running.store(true, Ordering::SeqCst);
 

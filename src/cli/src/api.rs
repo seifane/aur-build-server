@@ -3,7 +3,7 @@ use reqwest::blocking::Client;
 use reqwest::header;
 use reqwest::header::{HeaderMap, HeaderValue};
 use common::http::payloads::PackageRebuildPayload;
-use common::http::responses::{PackageResponse, SuccessResponse};
+use common::http::responses::{PackageResponse, SuccessResponse, WorkerResponse};
 
 pub struct Api {
     client: Client,
@@ -55,6 +55,14 @@ impl Api {
     {
         let response: String = self.client.get(format!("{}/api/logs/{}", self.host, package))
             .send()?.text()?;
+
+        Ok(response)
+    }
+
+    pub fn get_workers(&self) -> Result<Vec<WorkerResponse>, Box<dyn Error>> {
+        let response: Vec<WorkerResponse> = self.client.get(format!("{}/api/workers", self.host))
+            .send()?
+            .json()?;
 
         Ok(response)
     }
