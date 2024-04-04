@@ -101,14 +101,6 @@ impl Orchestrator {
     pub async fn dispatch_loop(orchestrator: Arc<RwLock<Orchestrator>>) {
         let is_running = orchestrator.read().await.is_running.clone();
 
-        {
-            let res = orchestrator.write().await.state.restore();
-            match res {
-                Ok(_) => info!("Restored state for packages"),
-                Err(e) => error!("Failed to restore state for packages: {:?}", e)
-            };
-        }
-
         is_running.store(true, Ordering::SeqCst);
 
         while is_running.load(Ordering::SeqCst) {
