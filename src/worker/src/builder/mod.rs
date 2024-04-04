@@ -4,7 +4,7 @@ use std::sync::Arc;
 use log::{info, warn};
 use tokio::fs::{create_dir, remove_dir_all};
 use tokio::sync::RwLock;
-use common::models::{Package, WorkerStatus};
+use common::models::{PackageJob, WorkerStatus};
 use crate::commands::git::{apply_patches, clone_repo};
 use crate::commands::makepkg::make_package;
 use crate::commands::pacman::{clear_installed_dependencies, pacman_update_repos};
@@ -22,21 +22,21 @@ pub async fn init_logs() -> Result<(), Box<dyn Error + Send + Sync>>
     Ok(())
 }
 
-pub async fn fetch_package(package: &Package) -> Result<(), Box<dyn Error + Send + Sync>>
+pub async fn fetch_package(package: &PackageJob) -> Result<(), Box<dyn Error + Send + Sync>>
 {
-    let repository = clone_repo(&package.name)?;
+    let repository = clone_repo(&package.definition.name)?;
     apply_patches(&package, repository).await?;
     Ok(())
 }
 
 pub async fn send_job_result(
     worker: Arc<RwLock<Worker>>,
-    package: &Package,
+    package: &PackageJob,
     build_result: Result<PackageBuild, PackageBuildError>
 ) -> Result<(), Box<dyn Error + Sync + Send>>
 {
     let http_client = worker.read().await.get_http_client();
-    http_client.lock().await.upload_packages(&package.name, build_result.clone()).await?;
+    http_client.lock().await.upload_packages(&package.definition.name, build_result.clone()).await?;
     worker.write().await.set_current_package(None);
     Ok(())
 }
@@ -57,7 +57,7 @@ pub async fn process_package(worker: Arc<RwLock<Worker>>) -> Result<(), Box<dyn 
         return Ok(());
     }
     let package = package.unwrap();
-    info!("Starting to process package {}", package.name);
+    info!("Starting to process package {}", package.definition.name);
 
     init_logs().await?;
 

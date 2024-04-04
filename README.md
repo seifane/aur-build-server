@@ -152,5 +152,5 @@ SigLevel = Optional TrustAll
 ```
 
 # Roadmap
-- [ ] Support restoring already built packages on start up (High priority)
 - [ ] Support repos from custom sources that are not aur (git, ...) 
+- [ ] Webhooks to notify updates in the repo

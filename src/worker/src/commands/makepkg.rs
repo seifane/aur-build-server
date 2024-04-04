@@ -2,7 +2,7 @@ use async_recursion::async_recursion;
 use log::{debug, error, info};
 use srcinfo::Srcinfo;
 use tokio::process::Command;
-use common::models::Package;
+use common::models::PackageJob;
 use crate::commands::CommandResult;
 use crate::errors::PackageBuildError;
 use crate::commands::git::clone_repo;
@@ -12,21 +12,21 @@ use crate::models::{PackageBuild};
 use crate::utils::sanitize_dependency;
 
 
-async fn handle_run_before(package: &Package) -> Result<(), PackageBuildError>{
-    if let Some(run_before) = package.run_before.as_ref() {
-        info!("Running run_before for {}", package.name);
+async fn handle_run_before(package: &PackageJob) -> Result<(), PackageBuildError>{
+    if let Some(run_before) = package.definition.run_before.as_ref() {
+        info!("Running run_before for {}", package.definition.name);
         let pre_run_output = Command::new("sh")
             .arg("-c")
             .arg(run_before).output().await;
 
         let out = pre_run_output.unwrap();
 
-        write_log_section(package.name.as_str(), LogSection::RunBeforeOut, out.stdout.as_slice()).await.unwrap();
-        write_log_section(package.name.as_str(), LogSection::RunBeforeErr, out.stderr.as_slice()).await.unwrap();
+        write_log_section(package.definition.name.as_str(), LogSection::RunBeforeOut, out.stdout.as_slice()).await.unwrap();
+        write_log_section(package.definition.name.as_str(), LogSection::RunBeforeErr, out.stderr.as_slice()).await.unwrap();
 
         let status_code = out.status;
         if status_code.code().unwrap_or(-1) != 0 {
-            let message = format!("Failed run_before for {} with code {}", package.name, status_code.code().unwrap_or(-1));
+            let message = format!("Failed run_before for {} with code {}", package.definition.name, status_code.code().unwrap_or(-1));
             error!("{message}");
             return Err(PackageBuildError::new(message, Some(status_code)));
         }
@@ -89,7 +89,7 @@ pub async fn extract_aur_deps(srcinfo: &Srcinfo) -> Vec<String>
 }
 
 #[async_recursion]
-pub async fn handle_aur_deps(package: &Package, deps: Vec<String>) -> Result<Vec<String>, PackageBuildError>
+pub async fn handle_aur_deps(package: &PackageJob, deps: Vec<String>) -> Result<Vec<String>, PackageBuildError>
 {
     let mut added_deps = Vec::new();
     for dep in deps.iter() {
@@ -105,11 +105,11 @@ pub async fn handle_aur_deps(package: &Package, deps: Vec<String>) -> Result<Vec
 
         let result = build_makepkg(&dep, true).await?;
 
-        write_log_section(package.name.as_str(), LogSection::DepsOut(dep.clone()), result.stdout.as_bytes()).await.unwrap();
-        write_log_section(package.name.as_str(), LogSection::DepsErr(dep.clone()), result.stderr.as_bytes()).await.unwrap();
+        write_log_section(package.definition.name.as_str(), LogSection::DepsOut(dep.clone()), result.stdout.as_bytes()).await.unwrap();
+        write_log_section(package.definition.name.as_str(), LogSection::DepsErr(dep.clone()), result.stderr.as_bytes()).await.unwrap();
 
         if !result.success() {
-            error!("Failed makepkg for {} AUR dependency for {} with code {}, check build logs for full output", dep, package.name, result.status.code().unwrap_or(-1));
+            error!("Failed makepkg for {} AUR dependency for {} with code {}, check build logs for full output", dep, package.definition.name, result.status.code().unwrap_or(-1));
             return Err(PackageBuildError::new(String::from("Failed makepkg"), Some(result.status)));
         }
 
@@ -120,9 +120,9 @@ pub async fn handle_aur_deps(package: &Package, deps: Vec<String>) -> Result<Vec
     Ok(added_deps)
 }
 
-pub async fn make_package(package: &Package) -> Result<PackageBuild, PackageBuildError> {
+pub async fn make_package(package: &PackageJob) -> Result<PackageBuild, PackageBuildError> {
 
-    let src_info = get_src_info(&package.name).await.map_err(|e| {
+    let src_info = get_src_info(&package.definition.name).await.map_err(|e| {
         PackageBuildError::new(format!("Failed to get src info {}", e.to_string()), None)
     })?;
 
@@ -142,9 +142,9 @@ pub async fn make_package(package: &Package) -> Result<PackageBuild, PackageBuil
     let installed_deps = handle_aur_deps(package, extract_aur_deps(&src_info).await).await?;
     info!("Installed additional deps {:?}", installed_deps);
 
-    let result = build_makepkg(&package.name, false).await?;
-    write_log_section(package.name.as_str(), LogSection::MakePkgOut, result.stdout.as_bytes()).await.unwrap();
-    write_log_section(package.name.as_str(), LogSection::MakePkgErr, result.stderr.as_bytes()).await.unwrap();
+    let result = build_makepkg(&package.definition.name, false).await?;
+    write_log_section(package.definition.name.as_str(), LogSection::MakePkgOut, result.stdout.as_bytes()).await.unwrap();
+    write_log_section(package.definition.name.as_str(), LogSection::MakePkgErr, result.stderr.as_bytes()).await.unwrap();
 
     Ok(PackageBuild::new(true, version, installed_deps))
 }
