@@ -4,14 +4,14 @@ use tokio::sync::mpsc::{UnboundedSender};
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::Mutex;
 use common::messages::{WebsocketMessage};
-use common::models::{Package, WorkerStatus};
+use common::models::{PackageJob, WorkerStatus};
 use crate::orchestrator::http::HttpClient;
 
 
 pub struct Worker {
     sender: UnboundedSender<WebsocketMessage>,
     status: WorkerStatus,
-    pub current_package: Option<Package>,
+    pub current_package: Option<PackageJob>,
     http_client: Arc<Mutex<HttpClient>>,
 }
 
@@ -29,7 +29,7 @@ impl Worker {
         }
     }
 
-    pub fn set_current_package(&mut self, current_package: Option<Package>) {
+    pub fn set_current_package(&mut self, current_package: Option<PackageJob>) {
         self.current_package = current_package;
     }
 
@@ -41,7 +41,7 @@ impl Worker {
     pub fn push_state(&mut self) -> Result<(), SendError<WebsocketMessage>> {
         let package = match &self.current_package {
             None => None,
-            Some(current_package) => Some(current_package.name.clone())
+            Some(current_package) => Some(current_package.definition.name.clone())
         };
 
         let payload = WebsocketMessage::WorkerStatusUpdate {

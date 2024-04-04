@@ -1,19 +1,15 @@
 use std::error::Error;
 use log::info;
-use serde::Serialize;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
+use common::http::responses::WorkerResponse;
 use common::models::{PackageStatus, WorkerStatus};
 use common::messages::{WebsocketMessage};
 use crate::models::server_package::{ServerPackage};
 
-#[derive(Serialize)]
 pub struct Worker {
-    #[serde(skip_serializing)]
     pub receiver_task: JoinHandle<()>,
-    #[serde(skip_serializing)]
     pub sender_task: JoinHandle<()>,
-    #[serde(skip_serializing)]
     pub sender: UnboundedSender<WebsocketMessage>,
 
     id: usize,
@@ -45,7 +41,7 @@ impl Worker {
     {
         self.sender.send(
             WebsocketMessage::JobSubmit {
-                package: package.package.clone(),
+                package: package.get_package_job(),
             }
         )?;
 
@@ -92,6 +88,15 @@ impl Worker {
         info!("Terminating worker id {}", self.id);
         self.sender_task.abort();
         self.receiver_task.abort();
+    }
+
+    pub fn to_http_response(&self) -> WorkerResponse {
+        WorkerResponse {
+            id: self.id,
+            status: self.status,
+            current_job: self.current_job.clone(),
+            is_authenticated: self.is_authenticated,
+        }
     }
 }
 

@@ -15,3 +15,6 @@ config_server.json
 config_worker.json
 aur-build-worker.log
 aur-build-server.log
+
+.gitlab-ci-local-variables.yml
+.gitlab-ci-local

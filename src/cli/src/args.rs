@@ -20,6 +20,9 @@ pub struct Args {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
+    /// Get the list of current workers
+    Workers {},
+
     /// Packages related commands. list, rebuild.
     Packages {
         #[command(subcommand)]
