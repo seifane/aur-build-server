@@ -34,6 +34,7 @@ impl ServerPackage {
             status: self.state.status,
             last_built: self.state.last_built.clone(),
             last_built_version: self.state.last_built_version.clone(),
+            last_error: self.state.last_error.clone()
         }
     }
 

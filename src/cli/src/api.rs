@@ -66,4 +66,13 @@ impl Api {
 
         Ok(response)
     }
+
+    pub fn webhook_trigger_package(&self, package_name: &String) -> Result<SuccessResponse, Box<dyn Error>>
+    {
+        let response: SuccessResponse = self.client.post(format!("{}/api/webhook/trigger/package_updated/{}", self.host, package_name))
+            .send()?
+            .json()?;
+
+        Ok(response)
+    }
 }

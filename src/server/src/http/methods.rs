@@ -45,14 +45,20 @@ pub async fn rebuild_packages(orchestrator: Arc<RwLock<Orchestrator>>, payload: 
     Ok(reply::json(&SuccessResponse::from(true)))
 }
 
-pub async fn webhook_trigger_package(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible>
+pub async fn webhook_trigger_package(orchestrator: Arc<RwLock<Orchestrator>>, package_name: String) -> Result<impl warp::Reply, Infallible>
 {
     let orchestrator_lock = orchestrator.write().await;
-    let packages = orchestrator_lock.state.get_packages();
+    let package = orchestrator_lock.state.get_package_by_name(&package_name);
 
-    orchestrator_lock.webhook_manager.trigger_webhook_package_updated(packages.iter().next().unwrap().1).await;
-
-    Ok(reply::json(&SuccessResponse::from(true)))
+    match package {
+        None => {
+            Ok(reply::json(&SuccessResponse::from(false)))
+        }
+        Some(package) => {
+            orchestrator_lock.webhook_manager.trigger_webhook_package_updated(package.as_http_response()).await;
+            Ok(reply::json(&SuccessResponse::from(true)))
+        }
+    }
 }
 
 

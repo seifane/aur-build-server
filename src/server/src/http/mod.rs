@@ -86,12 +86,13 @@ pub async fn start_http(
         .and_then(move |o, payload: PackageRebuildPayload| rebuild_packages(o, payload));
 
     let trigger_webhook = api_routes
-        .and(warp::path("webhook")).and(warp::path("trigger")).and(warp::path("package"))
+        .and(warp::path("webhook")).and(warp::path("trigger")).and(warp::path("package_updated"))
         .and(with_auth(config.api_key.clone()))
         .untuple_one()
-        .and(warp::get())
+        .and(warp::post())
         .and(orchestrator_filter.clone())
-        .and_then(move |o| webhook_trigger_package(o));
+        .and(warp::path::param())
+        .and_then(move |o, package_name: String | webhook_trigger_package(o, package_name));
 
 
     let upload_package = api_routes.and(warp::path("worker"))

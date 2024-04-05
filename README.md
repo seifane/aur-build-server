@@ -93,7 +93,7 @@ Options:
   -V, --version              Print version
 ```
 
-## Api
+## API
 
 - `GET /repo` Exposes the created Arch repository
 - `GET /api/workers` Returns a list of currently connected workers and their status
@@ -103,8 +103,9 @@ Options:
     { "packages": ["platform"] }
     ```
 - `GET /api/logs/:package_name` Get build logs for a given `package_name`.
+- `POST /api/webhooks/trigger/package_updated/:package_name` Manually trigger a PackageUpdated webhook for the given package name.
 
-### Api Authentication
+### API Authentication
 The API are protected using an API key specified in the `config_server.json` file.
 You can authenticate a request by including the API key in the `Authorization` header.
 
@@ -113,16 +114,18 @@ You can authenticate a request by including the API key in the `Authorization` h
 ### Server
 
 - `repo_name` (required) : The name of the repo that will be used for repo-add.
-- `sign_key` (optional) : ID of the GPG key that the server should use when trying to sign the packages and the repo.
+- `sign_key` (optional, default: null) : ID of the GPG key that the server should use when trying to sign the packages and the repo.
 - `api_key` (required) : The api key that will be used to authenticate workers and api consumers.
-- `rebuild_time` (optional) : The amount of seconds to wait before trying to rebuild a package. If none is given packages will not be automatically rebuilt.
+- `rebuild_time` (optional, default: null) : The amount of seconds to wait before trying to rebuild a package. If null is given packages will not be regularly rebuilt.
 - `packages` (required) : The packages that should be built.
   - `name` (required) : Defines the name of the package from aur.
   - `run_before` (optional) : Defines a bash command to run before trying to build the package (see sample config).
   - `patches` (optional) : Defines a list of patches to be applied to the downloaded package files
     - `url` (required) : The url of the patch
     - `sha512` (optional) : If given this is the SHA512 checksum for the patch file
+- `serve_path` (optional, default: `serve/`) : Path to the directory which will contain the package files, it will also be served by the http server at `/repo`
 - `port` (default: 8888) : Port that the server will listen on.
+- `webhooks` (optional) : Array of URLs that will get sent webhooks on events related to packages. See the webhooks section.
 
 #### Signing
 
@@ -146,11 +149,37 @@ Server = http://your-server-domain-or-ip/repo
 
 Make sure to replace `aurbuild` with the name you put in the server configuration under `repo_name`.
 
-If you do not enable signing you will need to add the following to disable signature checking.
+If you do not enable signing you will need to add the following line to disable signature checking.
 ```text
 SigLevel = Optional TrustAll
 ```
 
+# Webhooks
+
+You can specify a list of URLs that will get POST'ed a payload when events related to packages happen.
+All webhooks are POST to the URL with a `type` corresponding to the event being trigger and the `payload` for the given type.
+
+## Webhook events
+
+- PackageUpdated : Triggers when the package is scheduled for rebuild, has been built with a new version or failed to build.
+
+Example:
+```json
+{
+  "type": "PackageUpdated",
+  "payload": {
+    "package": {
+      "name": "google-chrome",
+      "run_before": null,
+      "patches": null
+    },
+    "status": "BUILT",
+    "last_built": "2024-01-01T00:00:00",
+    "last_built_version": "1.2.3",
+    "last_error": null
+  }
+}
+```
+
 # Roadmap
 - [ ] Support repos from custom sources that are not aur (git, ...) 
-- [ ] Webhooks to notify updates in the repo

@@ -27,7 +27,7 @@ impl Repo {
 
     pub async fn init(&self) {
         if !self.path.exists() {
-            tokio::fs::create_dir(&self.path).await.unwrap();
+            tokio::fs::create_dir_all(&self.path).await.unwrap();
         }
     }
 

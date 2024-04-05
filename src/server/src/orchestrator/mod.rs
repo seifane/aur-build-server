@@ -91,7 +91,7 @@ impl Orchestrator {
         info!("Received packages {:?}", package_files);
 
         if self.state.update_package_state_from_build_data(package_name, package_build_data, package_files.clone()) {
-            self.webhook_manager.trigger_webhook_package_updated(self.state.get_package_by_name(package_name).unwrap()).await;
+            self.webhook_manager.trigger_webhook_package_updated(self.state.get_package_by_name(package_name).unwrap().as_http_response()).await;
         }
 
         if !package_files.is_empty() {

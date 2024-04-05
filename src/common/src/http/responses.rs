@@ -21,7 +21,8 @@ pub struct PackageResponse {
     pub package: PackageDefinition,
     pub status: PackageStatus,
     pub last_built: Option<DateTime<Utc>>,
-    pub last_built_version: Option<String>
+    pub last_built_version: Option<String>,
+    pub last_error: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

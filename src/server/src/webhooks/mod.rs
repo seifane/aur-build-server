@@ -2,9 +2,9 @@ mod payloads;
 
 use log::{error, info};
 use reqwest::Client;
+use common::http::responses::PackageResponse;
 use crate::models::config::Config;
-use crate::models::server_package::ServerPackage;
-use crate::webhooks::payloads::WebhookPayload;
+use crate::webhooks::payloads::{WebhookPayload};
 
 
 pub struct WebhookManager {
@@ -24,10 +24,10 @@ impl WebhookManager {
         }
     }
 
-    pub async fn trigger_webhook_package_updated(&self, package: &ServerPackage) {
+    pub async fn trigger_webhook_package_updated(&self, package: PackageResponse) {
         for endpoint in self.endpoints.iter() {
             let response = self.client.post(endpoint)
-                .json(&WebhookPayload::PackageUpdated(package.as_http_response()))
+                .json(&WebhookPayload::PackageUpdated(package.clone()))
                 .send()
                 .await;
 

@@ -1,8 +1,13 @@
 {
   "repo_name": "aurbuild",
   "sign_key": "1DBB6F2B90D7CD9DE67A0594084D53C576E33D37",
+  "port": 8888,
+  "serve_path": "./serve",
   "api_key": "changeme",
   "rebuild_time": 86400,
+  "webhooks": [
+      "http://yourwebhookhost.test/webhook"
+  ],
   "packages": [
     {
       "name": "google-chrome",

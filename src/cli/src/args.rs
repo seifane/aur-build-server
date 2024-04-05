@@ -32,6 +32,11 @@ pub enum Commands {
     Logs {
         package: String,
     },
+    /// Webhooks related commands. trigger.
+    Webhooks {
+        #[command(subcommand)]
+        command: WebhookCommands
+    },
     /// Profile related commands. list, create, delete, set-default.
     Profiles {
         #[command(subcommand)]
@@ -39,12 +44,30 @@ pub enum Commands {
     }
 }
 
+
 #[derive(Subcommand, Debug)]
 pub enum PackageCommands {
     /// List packages
     List {},
     /// package1 package2 [...] Rebuild specified packages, if no specified packages rebuild all.
     Rebuild { packages: Vec<String> }
+}
+
+#[derive(Subcommand, Debug)]
+pub enum WebhookCommands {
+    /// Manually trigger a webhook
+    Trigger {
+        #[command(subcommand)]
+        command: WebhookTriggerCommands
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum WebhookTriggerCommands {
+    /// Manually trigger a PackageUpdated webhook
+    PackageUpdated {
+        package_name: String
+    },
 }
 
 #[derive(Subcommand, Debug)]
