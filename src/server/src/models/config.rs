@@ -12,9 +12,11 @@ pub struct Config {
     pub rebuild_time: Option<u64>,
     pub packages: Vec<PackageDefinition>,
 
-    pub serve_path: Option<String>,
+    serve_path: Option<String>,
 
     port: Option<u16>,
+
+    pub webhooks: Option<Vec<String>>,
 }
 
 impl Config {

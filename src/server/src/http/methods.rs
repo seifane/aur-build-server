@@ -1,22 +1,20 @@
 use std::convert::Infallible;
 use std::path::{Component, PathBuf};
 use std::sync::Arc;
-use log::{debug, error, info};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{RwLock};
 use warp::multipart::FormData;
 use warp::{reply};
 use warp::http::StatusCode;
 use common::http::payloads::PackageRebuildPayload;
 use common::http::responses::{SuccessResponse, WorkerResponse};
 use common::models::PackageStatus;
-use crate::http::util::MultipartField::{File, Text};
-use crate::http::util::parse_multipart;
+use crate::http::util::MultipartField::{Text};
+use crate::http::util::{parse_multipart};
 use crate::orchestrator::Orchestrator;
 use crate::orchestrator::state::PackageBuildData;
-use crate::utils::repo::{Repo};
 
 pub async fn get_packages(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible> {
-    Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.state.get_packages().iter().map(|i| i.1.get_response()).collect::<Vec<_>>()))
+    Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.state.get_packages().iter().map(|i| i.1.as_http_response()).collect::<Vec<_>>()))
 }
 
 pub async fn get_workers(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible> {
@@ -47,11 +45,20 @@ pub async fn rebuild_packages(orchestrator: Arc<RwLock<Orchestrator>>, payload: 
     Ok(reply::json(&SuccessResponse::from(true)))
 }
 
-pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormData, repo: Arc<Mutex<Repo>>) -> Result<impl warp::Reply, Infallible>
+pub async fn webhook_trigger_package(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible>
+{
+    let orchestrator_lock = orchestrator.write().await;
+    let packages = orchestrator_lock.state.get_packages();
+
+    orchestrator_lock.webhook_manager.trigger_webhook_package_updated(packages.iter().next().unwrap().1).await;
+
+    Ok(reply::json(&SuccessResponse::from(true)))
+}
+
+
+pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormData) -> Result<impl warp::Reply, Infallible>
 {
     let fields = parse_multipart(form).await?;
-
-    let mut package_files = Vec::new();
 
     let package_name = if let Some(package_name) = fields.get("package_name") {
         if let Text(package_name) = package_name.first().unwrap() {
@@ -61,7 +68,7 @@ pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormD
         }
     } else {
         None
-    };
+    }.unwrap();
 
     let built_version = if let Some(version) = fields.get("version") {
         if let Text(version) = version.first().unwrap() {
@@ -76,52 +83,29 @@ pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormD
         None
     };
 
-    if let Some(files) = fields.get("files[]") {
-        for file in files.iter() {
-            if let File(filename, content) = file {
-                debug!("Copying {} ...", filename);
-                tokio::fs::write(format!("serve/{}", filename), content).await.unwrap();
-                package_files.push(filename.clone());
+    let parsed_errors = match fields.get("error") {
+        None => Vec::new(),
+        Some(errors) => {
+            let mut parsed = Vec::new();
+            for error in errors.iter() {
+                if let Text(error) = error {
+                    parsed.push(error.to_string());
+                }
             }
+            parsed
         }
-    }
+    };
 
-    if let Some(files) = fields.get("log_files[]") {
-        for file in files.iter() {
-            if let File(filename, content) = file {
-                tokio::fs::write(format!("logs/{}", filename), content).await.unwrap();
-            }
-        }
-    }
-
-    info!("Received packages {:?}", package_files);
-
-    if !package_files.is_empty() {
-        let res = repo.lock().await.add_packages_to_repo(package_files.clone()).await;
-        if let Err(e) = &res {
-            error!("Add to repo failed {}", e.to_string());
-
-            orchestrator.write().await.state.set_package_status(package_name.unwrap(), PackageStatus::FAILED);
-            return Ok("");
-        }
-    }
-
-    if let Some(error) = fields.get("error") {
-        error!("Error while building {} = {:?}", package_name.unwrap(), error.first().unwrap());
-
-        orchestrator.write().await.state.set_package_status(package_name.unwrap(), PackageStatus::FAILED);
-    } else {
-        orchestrator.write().await.state.set_package_status(package_name.unwrap(), PackageStatus::BUILT);
-    }
-
-    orchestrator.write().await.state.set_package_build_data(
-        package_name.unwrap(),
+    orchestrator.write().await.handle_package_build_response(
+        package_name,
         PackageBuildData {
+            files: fields.get("files[]"),
+            log_files: fields.get("log_files[]"),
+
+            errors: parsed_errors,
             time: Some(chrono::offset::Utc::now()),
             version: built_version,
-            package_files
         }
-    );
-
+    ).await;
     Ok("")
 }

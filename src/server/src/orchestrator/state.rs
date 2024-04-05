@@ -4,14 +4,18 @@ use std::fs::File;
 use chrono::{DateTime, Duration, Utc};
 use log::{debug, error, info, warn};
 use common::models::PackageStatus;
+use crate::http::util::MultipartField;
 use crate::models::config::Config;
 use crate::models::package_state::PackageState;
 use crate::models::server_package::{ServerPackage};
 
-pub struct PackageBuildData {
+pub struct PackageBuildData<'a> {
+    pub files: Option<&'a Vec<MultipartField>>,
+    pub log_files: Option<&'a Vec<MultipartField>>,
+
+    pub errors: Vec<String>,
     pub time: Option<DateTime<Utc>>,
     pub version: Option<String>,
-    pub package_files: Vec<String>,
 }
 
 pub struct State {
@@ -48,7 +52,7 @@ impl State {
         for (package_name, state) in package_states.iter() {
             if let Some(package) = self.packages.get_mut(package_name) {
                 info!("Restoring state for {}", package.get_package_name());
-                package.set_state(state.clone());
+                package.state = state.clone();
             } else {
                 warn!("Dropping state for {}: not found in config", package_name);
             }
@@ -73,6 +77,10 @@ impl State {
         }
     }
 
+    pub fn get_package_by_name(&self, package_name: &String) -> Option<&ServerPackage> {
+        self.packages.get(package_name)
+    }
+
     fn get_mut_package_by_name(&mut self, package_name: &String) -> Option<&mut ServerPackage>
     {
         self.packages.get_mut(package_name)
@@ -82,7 +90,7 @@ impl State {
     {
         self.packages
             .iter_mut()
-            .find(|it| it.1.state.status == PackageStatus::PENDING)
+            .find(|(_, package)| package.state.status == PackageStatus::PENDING)
             .map(|it| it.1)
     }
 
@@ -92,11 +100,12 @@ impl State {
     }
 
     pub fn set_all_packages_pending(&mut self) {
-        for package in self.packages.iter_mut() {
-            if package.1.state.status != PackageStatus::BUILDING {
-                package.1.state.status = PackageStatus::PENDING
+        for (_, package) in self.packages.iter_mut() {
+            if package.state.status != PackageStatus::BUILDING {
+                package.set_status(PackageStatus::PENDING);
             }
         }
+        self.save_to_disk();
     }
 
     pub fn set_package_status(&mut self, package_name: &String, status: PackageStatus) {
@@ -106,17 +115,35 @@ impl State {
         self.save_to_disk();
     }
 
-    pub fn set_package_build_data(
+    pub fn update_package_state_from_build_data(
         &mut self,
         package_name: &String,
-        build_data: PackageBuildData
-    ) {
+        build_data: PackageBuildData,
+        package_files: Vec<String>
+    ) -> bool {
+        let mut should_notify = false;
+
         if let Some(package) = self.get_mut_package_by_name(package_name) {
+            if let Some(error) = build_data.errors.first() {
+                package.state.status = PackageStatus::FAILED;
+                package.state.last_error = Some(error.clone());
+                error!("Error while building {}: {}", package_name, error);
+            } else {
+                package.state.status = PackageStatus::BUILT;
+                package.state.last_error = None;
+                info!("Built {}", package_name);
+            }
+
+            if package.state.last_built_version == build_data.version || package.state.status == PackageStatus::FAILED {
+                should_notify = true;
+            }
             package.state.last_built = build_data.time;
             package.state.last_built_version = build_data.version;
-            package.state.files = build_data.package_files;
+            package.state.files = package_files;
         }
         self.save_to_disk();
+
+        should_notify
     }
 
     pub fn mark_package_for_rebuild(&mut self, rebuild_interval: u64)

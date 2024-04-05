@@ -27,17 +27,7 @@ impl ServerPackage {
         self.state.status = status;
     }
 
-    pub fn get_state(&self) -> &PackageState
-    {
-        &self.state
-    }
-
-    pub fn set_state(&mut self, state: PackageState)
-    {
-        self.state = state;
-    }
-
-    pub fn get_response(&self) -> PackageResponse
+    pub fn as_http_response(&self) -> PackageResponse
     {
         PackageResponse {
             package: self.package.clone(),

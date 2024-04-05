@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::path::{PathBuf};
 use log::{debug, error, info, warn};
 use tokio::process::Command;
 use crate::models::config::Config;
@@ -6,16 +7,16 @@ use crate::models::config::Config;
 pub struct Repo {
     pub repo_name: String,
     pub sign_key: Option<String>,
-    pub path: String,
+    pub path: PathBuf,
 }
 
 impl Repo {
-    pub fn new(repo_name: String, sign_key: Option<String>, path: String) -> Self
+    pub fn new(repo_name: String, sign_key: Option<String>, path: String) -> Repo
     {
         Repo {
             repo_name,
             sign_key,
-            path
+            path: PathBuf::from(path),
         }
     }
 
@@ -24,9 +25,15 @@ impl Repo {
         Self::new(config.repo_name.clone(), config.sign_key.clone(), config.get_serve_path())
     }
 
+    pub async fn init(&self) {
+        if !self.path.exists() {
+            tokio::fs::create_dir(&self.path).await.unwrap();
+        }
+    }
+
     pub async fn set_repo_packages(&self, packages: Vec<String>) -> Result<(), Box<dyn Error + Send + Sync>>
     {
-        let mut dir = tokio::fs::read_dir(self.path.as_str()).await?;
+        let mut dir = tokio::fs::read_dir(self.path.as_os_str()).await?;
 
         while let Some(entry) = dir.next_entry().await? {
             let file_name = entry.file_name().into_string().unwrap();
@@ -49,7 +56,7 @@ impl Repo {
 
     pub async fn get_packages(&self) -> Result<Vec<String>, Box<dyn Error + Send + Sync>>
     {
-        let mut dir = tokio::fs::read_dir("serve/").await?;
+        let mut dir = tokio::fs::read_dir(&self.path).await?;
 
         let mut packages = Vec::new();
 
@@ -70,9 +77,9 @@ impl Repo {
                     .arg(sign_key)
                     .arg("--yes")
                     .arg("--output")
-                    .arg(format!("serve/{}.sig", file))
+                    .arg(self.path.join(format!("{}.sig", file)).to_str().unwrap())
                     .arg("--detach-sig")
-                    .arg(format!("serve/{}", file))
+                    .arg(self.path.join(file))
                     .output().await?;
 
                 if !out.status.success() {
@@ -111,7 +118,7 @@ impl Repo {
         }
 
         let out = Command::new("repo-add")
-            .current_dir("serve/")
+            .current_dir(&self.path)
             .args(args)
             .output().await?;
 
