@@ -149,7 +149,7 @@ impl State {
     pub fn mark_package_for_rebuild(&mut self, rebuild_interval: u64)
     {
         for (_, package) in self.packages.iter_mut()
-            .filter(|(_, it)| it.state.status == PackageStatus::FAILED && it.state.status == PackageStatus::BUILT)
+            .filter(|(_, it)| it.state.status == PackageStatus::FAILED || it.state.status == PackageStatus::BUILT)
         {
             if let Some(last_built) = package.state.last_built {
                 if Utc::now().signed_duration_since(last_built) > Duration::try_seconds(rebuild_interval as i64).unwrap() {
