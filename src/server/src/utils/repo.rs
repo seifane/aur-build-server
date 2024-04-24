@@ -43,12 +43,6 @@ impl Repo {
                     warn!("Failed to clean {}: {:?}", file_name, e);
                 }
             }
-            if file_name.ends_with(".pkg.tar.zst") && packages.iter().find(|it| *it == &file_name).is_none() {
-                info!("Cleaning package {}", file_name);
-                if let Err(e) = tokio::fs::remove_file(entry.path()).await {
-                    warn!("Failed to clean {}: {:?}", file_name, e);
-                }
-            }
         }
 
         self.add_packages_to_repo(packages).await

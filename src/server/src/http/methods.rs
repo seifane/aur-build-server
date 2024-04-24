@@ -7,7 +7,6 @@ use warp::{reply};
 use warp::http::StatusCode;
 use common::http::payloads::PackageRebuildPayload;
 use common::http::responses::{SuccessResponse, WorkerResponse};
-use common::models::PackageStatus;
 use crate::http::util::MultipartField::{Text};
 use crate::http::util::{parse_multipart};
 use crate::orchestrator::Orchestrator;
@@ -34,12 +33,14 @@ pub async fn get_logs(package: String) -> Result<impl warp::Reply, Infallible> {
 
 pub async fn rebuild_packages(orchestrator: Arc<RwLock<Orchestrator>>, payload: PackageRebuildPayload) -> Result<impl warp::Reply, Infallible>
 {
+    let force = payload.force.unwrap_or(false);
+
     if let Some(packages) = payload.packages {
         for package in packages.iter() {
-            orchestrator.write().await.state.set_package_status(package, PackageStatus::PENDING);
+            orchestrator.write().await.state.queue_package_for_rebuild(package, force);
         }
     } else {
-        orchestrator.write().await.rebuild_all_packages();
+        orchestrator.write().await.state.queue_all_packages_for_rebuild(force);
     }
 
     Ok(reply::json(&SuccessResponse::from(true)))

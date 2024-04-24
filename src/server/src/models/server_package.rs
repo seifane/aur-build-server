@@ -27,6 +27,10 @@ impl ServerPackage {
         self.state.status = status;
     }
 
+    pub fn clear_last_built_version(&mut self) {
+        self.state.last_built_version = None;
+    }
+
     pub fn as_http_response(&self) -> PackageResponse
     {
         PackageResponse {

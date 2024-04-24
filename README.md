@@ -182,4 +182,5 @@ Example:
 ```
 
 # Roadmap
+- [ ] Add package version history, ability to keep some amount of version of the same package and keep serving them.
 - [ ] Support repos from custom sources that are not aur (git, ...) 

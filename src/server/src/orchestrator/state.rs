@@ -99,10 +99,23 @@ impl State {
         &self.packages
     }
 
-    pub fn set_all_packages_pending(&mut self) {
+    pub fn queue_package_for_rebuild(&mut self, package_name: &String, force: bool) {
+        if let Some(package) = self.get_mut_package_by_name(package_name) {
+            package.set_status(PackageStatus::PENDING);
+            if force {
+                package.clear_last_built_version();
+            }
+        }
+        self.save_to_disk();
+    }
+
+    pub fn queue_all_packages_for_rebuild(&mut self, force: bool) {
         for (_, package) in self.packages.iter_mut() {
             if package.state.status != PackageStatus::BUILDING {
                 package.set_status(PackageStatus::PENDING);
+                if force {
+                    package.clear_last_built_version();
+                }
             }
         }
         self.save_to_disk();

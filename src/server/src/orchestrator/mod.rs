@@ -46,6 +46,9 @@ impl Orchestrator {
         match self.state.restore() {
             Ok(_) => {
                 info!("Restored state for packages");
+                // TODO: Better handle restoring of state
+                // Go over each package one by one and add them to the repo one by one
+                // If one of the package files for the package is not found on disk queue the package for force rebuild
                 let mut package_files = Vec::new();
                 for (_, package) in self.state.get_packages().iter() {
                     package_files.append(&mut package.state.files.clone())
@@ -62,11 +65,6 @@ impl Orchestrator {
         };
     }
 
-    pub fn rebuild_all_packages(&mut self)
-    {
-        self.state.set_all_packages_pending();
-    }
-
     pub async fn handle_package_build_response(&mut self, package_name: &String, package_build_data: PackageBuildData<'_>)
     {
         if let Some(files) = package_build_data.log_files {
@@ -81,8 +79,8 @@ impl Orchestrator {
         if let Some(files) = package_build_data.files {
             for file in files.iter() {
                 if let File(filename, content) = file {
-                    debug!("Copying {} ...", filename);
-                    let path = self.repo.lock().await.path.join(filename).to_str().unwrap().to_string();
+                    let path = self.repo.lock().await.path.join(filename);
+                    debug!("Copying {filename} to {:?}...", path.as_path());
                     tokio::fs::write(path, content).await.unwrap();
                     package_files.push(filename.clone());
                 }
