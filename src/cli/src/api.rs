@@ -31,7 +31,7 @@ impl Api {
         Ok(self.client.get(format!("{}/api/packages", self.host)).send()?.json()?)
     }
 
-    pub fn rebuild_packages(&self, packages: Vec<String>) -> Result<SuccessResponse, Box<dyn Error>>
+    pub fn rebuild_packages(&self, packages: Vec<String>, force: bool) -> Result<SuccessResponse, Box<dyn Error>>
     {
         let packages = if packages.is_empty() {
             None
@@ -41,6 +41,7 @@ impl Api {
 
         let payload = PackageRebuildPayload {
             packages,
+            force: Some(force)
         };
 
         let response: SuccessResponse = self.client.post(format!("{}/api/rebuild", self.host))

@@ -50,7 +50,11 @@ pub enum PackageCommands {
     /// List packages
     List {},
     /// package1 package2 [...] Rebuild specified packages, if no specified packages rebuild all.
-    Rebuild { packages: Vec<String> }
+    Rebuild {
+        packages: Vec<String>,
+        #[clap(long, short, action)]
+        force: bool
+    }
 }
 
 #[derive(Subcommand, Debug)]

@@ -53,7 +53,7 @@ fn main() {
             let api = get_api(&args, &profile_config);
             match command {
                 PackageCommands::List {} => packages_list(&api),
-                PackageCommands::Rebuild { packages } => packages_rebuild(&api, packages.clone()),
+                PackageCommands::Rebuild { packages, force } => packages_rebuild(&api, packages.clone(), *force),
             }
         }
         Commands::Logs { package} => logs_get(&get_api(&args, &profile_config), package.clone()),

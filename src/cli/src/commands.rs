@@ -58,8 +58,8 @@ pub fn packages_list(api: &Api) {
         .unwrap());
 }
 
-pub fn packages_rebuild(api: &Api, packages: Vec<String>) {
-    let res = api.rebuild_packages(packages);
+pub fn packages_rebuild(api: &Api, packages: Vec<String>, force: bool) {
+    let res = api.rebuild_packages(packages, force);
     match res {
         Ok(res) => {
             if res.success {
