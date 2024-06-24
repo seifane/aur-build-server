@@ -69,7 +69,7 @@ pub fn clone_repo(repo_name: &String) -> Result<Repository, PackageBuildError> {
     let path = format!("data/{}", repo_name);
     if Path::new(path.as_str()).exists() {
         fs::remove_dir_all(Path::new(path.as_str())).map_err(
-            |_e| PackageBuildError::new(String::from("Failed to clean repo. Check permissions"), None)
+            |_e| PackageBuildError::new(String::from("Failed to clean repository. Check permissions"), None)
         )?;
     }
     let repository = Repository::clone(url.as_str(), path.as_str())

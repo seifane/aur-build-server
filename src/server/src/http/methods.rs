@@ -1,23 +1,26 @@
 use std::convert::Infallible;
 use std::path::{Component, PathBuf};
 use std::sync::Arc;
+use handlebars::Handlebars;
+use serde::Serialize;
+use tokio::fs::read_to_string;
 use tokio::sync::{RwLock};
 use warp::multipart::FormData;
 use warp::{reply};
 use warp::http::StatusCode;
 use common::http::payloads::PackageRebuildPayload;
 use common::http::responses::{SuccessResponse, WorkerResponse};
-use crate::http::util::MultipartField::{Text};
-use crate::http::util::{parse_multipart};
+use crate::http::models::PackageBuildData;
+use crate::http::multipart::MultipartField::{Text};
+use crate::http::multipart::{parse_multipart};
 use crate::orchestrator::Orchestrator;
-use crate::orchestrator::state::PackageBuildData;
 
 pub async fn get_packages(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible> {
-    Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.state.get_packages().iter().map(|i| i.1.as_http_response()).collect::<Vec<_>>()))
+    Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.repository.get_packages().iter().map(|i| i.1.as_http_response()).collect::<Vec<_>>()))
 }
 
 pub async fn get_workers(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible> {
-    Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.workers.values().map(|it| it.to_http_response()).collect::<Vec<WorkerResponse>>()))
+    Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.worker_manager.workers.values().map(|it| it.to_http_response()).collect::<Vec<WorkerResponse>>()))
 }
 
 pub async fn get_logs(package: String) -> Result<impl warp::Reply, Infallible> {
@@ -37,10 +40,10 @@ pub async fn rebuild_packages(orchestrator: Arc<RwLock<Orchestrator>>, payload: 
 
     if let Some(packages) = payload.packages {
         for package in packages.iter() {
-            orchestrator.write().await.state.queue_package_for_rebuild(package, force);
+            orchestrator.write().await.repository.queue_package_for_rebuild(package, force);
         }
     } else {
-        orchestrator.write().await.state.queue_all_packages_for_rebuild(force);
+        orchestrator.write().await.repository.queue_all_packages_for_rebuild(force);
     }
 
     Ok(reply::json(&SuccessResponse::from(true)))
@@ -49,7 +52,7 @@ pub async fn rebuild_packages(orchestrator: Arc<RwLock<Orchestrator>>, payload: 
 pub async fn webhook_trigger_package(orchestrator: Arc<RwLock<Orchestrator>>, package_name: String) -> Result<impl warp::Reply, Infallible>
 {
     let orchestrator_lock = orchestrator.write().await;
-    let package = orchestrator_lock.state.get_package_by_name(&package_name);
+    let package = orchestrator_lock.repository.get_package_by_name(&package_name);
 
     match package {
         None => {
@@ -103,16 +106,36 @@ pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormD
         }
     };
 
-    orchestrator.write().await.handle_package_build_response(
+    orchestrator.write().await.repository.handle_package_build_output(
         package_name,
         PackageBuildData {
             files: fields.get("files[]"),
             log_files: fields.get("log_files[]"),
 
             errors: parsed_errors,
-            time: Some(chrono::offset::Utc::now()),
             version: built_version,
         }
     ).await;
     Ok("")
+}
+
+#[derive(Serialize)]
+struct IndexRepoData {
+    pub name: String,
+    pub files: Vec<String>
+}
+
+pub async fn index_repo(_: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible>
+{
+    let mut reg = Handlebars::new();
+
+    // let directory = orchestrator.read().await.con
+
+    let template_content = read_to_string("./src/pages/repo_index.html").await.unwrap();
+    let rendred = reg.render_template(template_content.as_str(), &IndexRepoData{
+        name: "test".to_string(),
+        files: Vec::new()
+    }).unwrap();
+
+    Ok(warp::reply::html(rendred))
 }

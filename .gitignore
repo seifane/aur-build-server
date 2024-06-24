@@ -3,6 +3,7 @@ config/
 logs/
 mount/
 worker_logs/
+serve/
 
 arch-packages/aur-build-cli
 !arch-packages/aur-build-cli/PKGBUILD
@@ -18,3 +19,4 @@ aur-build-server.log
 
 .gitlab-ci-local-variables.yml
 .gitlab-ci-local
+/key.asc

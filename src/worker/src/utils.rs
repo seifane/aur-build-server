@@ -5,7 +5,7 @@ use reqwest::multipart::{Form, Part};
 use tokio::fs::read_dir;
 
 /// Removes version requirements on dependency strings.
-/// This is used to get the name of the dependency to determine if it is available on repo or has to be fetched on AUR.
+/// This is used to get the name of the dependency to determine if it is available on repository or has to be fetched on AUR.
 ///
 /// # Arguments
 ///

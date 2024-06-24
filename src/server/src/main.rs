@@ -1,31 +1,31 @@
 mod http;
 mod models;
-mod utils;
 mod orchestrator;
 mod webhooks;
+mod repository;
+mod worker;
 
 use std::fs::File;
 use std::sync::Arc;
 use simplelog::{ColorChoice, CombinedLogger, Config as SimpleLogConfig, TerminalMode, TermLogger, WriteLogger};
 use clap::Parser;
 use log::{info};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{RwLock};
 use crate::http::start_http;
 use crate::models::args::Args;
 use crate::models::config::Config;
 use crate::orchestrator::Orchestrator;
-use crate::utils::repo::Repo;
 
 pub async fn start(args: Args) {
     let config = Config::from_file(args.config_path);
 
-    let repo = Arc::new(Mutex::new(Repo::from_config(&config)));
-    repo.lock().await.init().await;
-    let orchestrator = Arc::new(RwLock::new(Orchestrator::new(repo, &config)));
+    let orchestrator = Orchestrator::new(&config).await;
+    let orchestrator = Arc::new(RwLock::new(orchestrator));
 
-    orchestrator.write().await.restore_state().await;
+    // orchestrator.write().await.restore_state().await;
 
     info!("Starting orchestrator");
+    orchestrator.write().await.restore_state().await;
     let orchestrator_task = tokio::task::spawn(Orchestrator::dispatch_loop(orchestrator.clone()));
 
     info!("Starting http");
