@@ -7,12 +7,21 @@ stages:
 
 test_apps:
   stage: test
-  image: rust
+  image: archlinux:latest
+  before_script:
+    - pacman-key --init
+    - pacman -Syy
+    - pacman -S base-devel rustup --noconfirm
+    - rustup default stable
   script:
     - cargo test
 
 build_server:
   stage: build
+  only:
+    - master
+    - dev
+    - tags
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
@@ -27,6 +36,10 @@ build_server:
 
 build_worker:
   stage: build
+  only:
+    - master
+    - dev
+    - tags
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]

@@ -6,8 +6,8 @@ use tokio::sync::{mpsc, RwLock};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::ws::{Message, WebSocket};
 use common::messages::{WebsocketMessage};
-use crate::models::worker::Worker;
 use crate::orchestrator::Orchestrator;
+use crate::worker::worker::Worker;
 
 pub async fn handle_websocket_connection(websocket: WebSocket, orchestrator: Arc<RwLock<Orchestrator>>, id: usize) {
     let (ws_tx, ws_rx) = websocket.split();
@@ -19,9 +19,11 @@ pub async fn handle_websocket_connection(websocket: WebSocket, orchestrator: Arc
 
     tx.send(WebsocketMessage::WorkerStatusRequest {}).unwrap();
 
+
+    // TODO: Move next id handling to worker manager
     let worker = Worker::new(receiver_task, sender_task, tx, id);
 
-    orchestrator.write().await.workers.insert(id, worker);
+    orchestrator.write().await.worker_manager.add(id, worker);
 }
 
 async fn websocket_recv_loop(mut ws_rx: SplitStream<WebSocket>, orchestrator: Arc<RwLock<Orchestrator>>, id: usize) {
@@ -67,10 +69,10 @@ async fn parse_websocket_message(message: Message, orchestrator: Arc<RwLock<Orch
 async fn handle_websocket_message(message: WebsocketMessage, orchestrator: Arc<RwLock<Orchestrator>>, id: usize) {
     match message {
         WebsocketMessage::WorkerStatusUpdate { status, package } => {
-            orchestrator.write().await.set_worker_status(id, status, package);
+            orchestrator.write().await.worker_manager.set_worker_status(id, status, package);
         },
         WebsocketMessage::Authenticate {api_key} => {
-            let is_authed = orchestrator.write().await.try_authenticate_worker(&id, api_key);
+            let is_authed = orchestrator.write().await.worker_manager.try_authenticate_worker(&id, api_key).await;
             if !is_authed {
                 warn!("Failed to auth worker id {}", id);
                 orchestrator.write().await.remove_worker(id);

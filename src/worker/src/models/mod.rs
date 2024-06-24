@@ -3,6 +3,7 @@ use serde::Deserialize;
 use clap::Parser;
 use log::LevelFilter;
 use clap::builder::TypedValueParser;
+use serde_json::Value;
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
