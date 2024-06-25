@@ -62,11 +62,9 @@ impl Orchestrator {
     }
 
     fn dispatch_packages(&mut self) {
-        debug!("Dispatching packages");
         self.repository.check_rebuild_interval();
 
         while let Some(package) = self.repository.get_next_pending_package() {
-            info!("Trying to dispatch {}", package.get_package_name());
             match self.worker_manager.dispatch(package) {
                 WorkerDispatchResult::NoneAvailable => return,
                 WorkerDispatchResult::Ok => {

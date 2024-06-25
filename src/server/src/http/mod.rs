@@ -104,13 +104,13 @@ pub async fn start_http(
         .and(with_orchestrator.clone())
         .and_then(move |f, orchestrator| upload_package(orchestrator, f));
 
-    let files_index = warp::path("repository")
+    let files_index = warp::path("repo")
         .and(warp::get())
         .and(warp::path::end())
         .and(with_orchestrator.clone())
         .and_then(|orchestrator| index_repo(orchestrator));
 
-    let files = warp::path("repository")
+    let files = warp::path("repo")
         .and(warp::get())
         .and(warp::fs::dir(config.get_serve_path()));
 

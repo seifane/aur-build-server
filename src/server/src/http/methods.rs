@@ -1,12 +1,14 @@
 use std::convert::Infallible;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Component, PathBuf};
 use std::sync::Arc;
+use chrono::{DateTime, Utc};
 use handlebars::Handlebars;
 use serde::Serialize;
-use tokio::fs::read_to_string;
+use tokio::fs::{read_dir};
 use tokio::sync::{RwLock};
 use warp::multipart::FormData;
-use warp::{reply};
+use warp::{reply, Reply};
 use warp::http::StatusCode;
 use common::http::payloads::PackageRebuildPayload;
 use common::http::responses::{SuccessResponse, WorkerResponse};
@@ -16,11 +18,11 @@ use crate::http::multipart::{parse_multipart};
 use crate::orchestrator::Orchestrator;
 
 pub async fn get_packages(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible> {
-    Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.repository.get_packages().iter().map(|i| i.1.as_http_response()).collect::<Vec<_>>()))
+    Ok::<_, Infallible>(reply::json(&orchestrator.read().await.repository.get_packages().iter().map(|i| i.1.as_http_response()).collect::<Vec<_>>()))
 }
 
 pub async fn get_workers(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible> {
-    Ok::<_, Infallible>(warp::reply::json(&orchestrator.read().await.worker_manager.workers.values().map(|it| it.to_http_response()).collect::<Vec<WorkerResponse>>()))
+    Ok::<_, Infallible>(reply::json(&orchestrator.read().await.worker_manager.workers.values().map(|it| it.to_http_response()).collect::<Vec<WorkerResponse>>()))
 }
 
 pub async fn get_logs(package: String) -> Result<impl warp::Reply, Infallible> {
@@ -122,20 +124,46 @@ pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormD
 #[derive(Serialize)]
 struct IndexRepoData {
     pub name: String,
-    pub files: Vec<String>
+    pub files: Vec<File>
 }
 
-pub async fn index_repo(_: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible>
+#[derive(Serialize)]
+struct File {
+    pub name: String,
+    pub date_modified_iso: String,
+    pub size: u64,
+}
+
+pub async fn index_repo(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl Reply, Infallible>
 {
-    let mut reg = Handlebars::new();
+    let template_content = include_str!("./pages/repo_index.html");
+    let path = orchestrator.read().await.config.read().await.get_serve_path();
+    let mut files = Vec::new();
 
-    // let directory = orchestrator.read().await.con
+    if let Ok(mut dir) = read_dir(path).await {
+        while let Some(entry) = dir.next_entry().await.unwrap() {
+            let metadata = entry.metadata().await.unwrap();
+            let dt: DateTime<Utc> = metadata.modified().unwrap().clone().into();
+            files.push(File {
+                name: entry.file_name().into_string().unwrap(),
+                date_modified_iso: format!("{}", dt.format("%+")),
+                size: metadata.size()
+            });
+        }
+    }
 
-    let template_content = read_to_string("./src/pages/repo_index.html").await.unwrap();
-    let rendred = reg.render_template(template_content.as_str(), &IndexRepoData{
-        name: "test".to_string(),
-        files: Vec::new()
-    }).unwrap();
+    files.sort_by(|a, b| a.name.cmp(&b.name));
 
-    Ok(warp::reply::html(rendred))
+    let reg = Handlebars::new();
+    if let Ok(rendered) = reg.render_template(template_content, &IndexRepoData {
+        name: orchestrator.read().await.config.read().await.repo_name.clone(),
+        files
+    }) {
+        return Ok(reply::html(rendered).into_response())
+    }
+
+
+    let mut response = reply::html("Server Error").into_response();
+    *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+    Ok(response)
 }
