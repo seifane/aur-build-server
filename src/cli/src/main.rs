@@ -8,8 +8,8 @@ use std::process::exit;
 use clap::Parser;
 use colored::Colorize;
 use crate::api::Api;
-use crate::args::{Args, Commands, PackageCommands, ProfileCommands, WebhookCommands, WebhookTriggerCommands};
-use crate::commands::{logs_get, packages_list, packages_rebuild, profile_create, profile_delete, profile_list, profile_set_default, webhook_trigger_package_update, workers_list};
+use crate::args::{Args, Commands, PackageCommands, ProfileCommands, WebhookCommands, WebhookTriggerCommands, WorkerCommands};
+use crate::commands::{logs_get, packages_list, packages_rebuild, profile_create, profile_delete, profile_list, profile_set_default, webhook_trigger_package_update, workers_delete, workers_list};
 use crate::profile::ProfileConfig;
 
 fn get_api(args: &Args, profile_config: &ProfileConfig) -> Api {
@@ -45,9 +45,12 @@ fn main() {
     let mut profile_config = ProfileConfig::from_file().expect("Unable to load profile config");
 
     match &args.command {
-        Commands::Workers {} => {
+        Commands::Workers { command} => {
             let api = get_api(&args, &profile_config);
-            workers_list(&api)
+            match command {
+                WorkerCommands::List { .. } => workers_list(&api),
+                WorkerCommands::Evict { id } => workers_delete(&api, *id)
+            }
         },
         Commands::Packages { command } => {
             let api = get_api(&args, &profile_config);

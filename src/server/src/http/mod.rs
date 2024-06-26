@@ -11,7 +11,7 @@ use warp::{Filter, reject, Rejection};
 use warp::header::headers_cloned;
 use warp::http::{HeaderMap, HeaderValue};
 use common::http::payloads::PackageRebuildPayload;
-use crate::http::methods::{get_logs, get_packages, get_workers, index_repo, rebuild_packages, upload_package, webhook_trigger_package};
+use crate::http::methods::{get_logs, get_packages, get_workers, index_repo, rebuild_packages, remove_worker, upload_package, webhook_trigger_package};
 use crate::http::websocket::handle_websocket_connection;
 use crate::models::config::Config;
 use crate::orchestrator::Orchestrator;
@@ -70,6 +70,14 @@ pub async fn start_http(
         .and(with_orchestrator.clone())
         .and_then(move |o| get_workers(o));
 
+    let remove_worker = api_routes.and(warp::path("workers"))
+        .and(warp::delete())
+        .and(with_auth(config.api_key.clone()))
+        .untuple_one()
+        .and(with_orchestrator.clone())
+        .and(warp::path::param())
+        .and_then(move |o, id| remove_worker(o, id));
+
     let get_logs = api_routes.and(warp::path("logs"))
         .and(with_auth(config.api_key.clone()))
         .untuple_one()
@@ -119,6 +127,7 @@ pub async fn start_http(
             .or(ws)
             .or(get_packages)
             .or(get_workers)
+            .or(remove_worker)
             .or(get_logs)
             .or(post_rebuild_packages)
             .or(trigger_webhook)

@@ -21,8 +21,10 @@ pub struct Args {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Get the list of current workers
-    Workers {},
-
+    Workers {
+        #[command(subcommand)]
+        command: WorkerCommands,
+    },
     /// Packages related commands. list, rebuild.
     Packages {
         #[command(subcommand)]
@@ -44,6 +46,15 @@ pub enum Commands {
     }
 }
 
+#[derive(Subcommand, Debug)]
+pub enum WorkerCommands {
+    /// List workers
+    List {},
+    ///  Evict the worker with the given id
+    Evict {
+        id: usize
+    }
+}
 
 #[derive(Subcommand, Debug)]
 pub enum PackageCommands {

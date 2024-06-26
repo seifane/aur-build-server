@@ -37,6 +37,8 @@ impl Worker {
         }
     }
 
+
+
     pub fn dispatch_package(&mut self, package: &mut ServerPackage) -> Result<(), Box<dyn Error>>
     {
         self.sender.send(
@@ -86,8 +88,12 @@ impl Worker {
     pub fn terminate(&mut self)
     {
         info!("Terminating worker id {}", self.id);
-        self.sender_task.abort();
-        self.receiver_task.abort();
+        if !self.sender_task.is_finished() {
+            self.sender_task.abort();
+        }
+        if !self.receiver_task.is_finished() {
+            self.receiver_task.abort();
+        }
     }
 
     pub fn to_http_response(&self) -> WorkerResponse {

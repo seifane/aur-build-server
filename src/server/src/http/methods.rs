@@ -25,6 +25,11 @@ pub async fn get_workers(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl
     Ok::<_, Infallible>(reply::json(&orchestrator.read().await.worker_manager.workers.values().map(|it| it.to_http_response()).collect::<Vec<WorkerResponse>>()))
 }
 
+pub async fn remove_worker(orchestrator: Arc<RwLock<Orchestrator>>, id: usize) -> Result<impl Reply, Infallible> {
+    let worker = orchestrator.write().await.worker_manager.remove(id);
+    Ok(reply::json(&SuccessResponse::from(worker.is_some())))
+}
+
 pub async fn get_logs(package: String) -> Result<impl warp::Reply, Infallible> {
     let path = PathBuf::from(format!("logs/{}.log", package));
     // Prevent path traversal

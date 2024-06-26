@@ -27,6 +27,15 @@ pub fn workers_list(api: &Api) {
         .unwrap())
 }
 
+pub fn workers_delete(api: &Api, id: usize) {
+    let res = api.delete_worker(id).unwrap();
+    if res.success {
+        println!("Evicted worker successfully");
+    } else {
+        println!("Failed to evict worker, is the id correct ?");
+    }
+}
+
 pub fn packages_list(api: &Api) {
     let packages_res = api.get_packages().unwrap();
 
