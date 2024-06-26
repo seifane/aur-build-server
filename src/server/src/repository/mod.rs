@@ -210,6 +210,7 @@ impl Repository
         let mut is_updated = false;
 
         if let Some(package) = self.packages.get_mut(package_name) {
+            package.state.last_built = Some(Utc::now());
             if let Some(error) = build_data.errors.first() {
                 package.state.status = PackageStatus::FAILED;
                 package.state.last_error = Some(error.clone());
@@ -217,7 +218,6 @@ impl Repository
             } else {
                 package.state.status = PackageStatus::BUILT;
                 package.state.last_error = None;
-                package.state.last_built = Some(Utc::now());
                 package.state.last_built_version = build_data.version.clone();
                 info!("Built {}", package_name);
             }
@@ -412,7 +412,7 @@ mod tests {
     #[serial]
     async fn handle_package_build_output_success_test() {
         let mut instance = get_instance_with_test_package(true).await;
-        create_dir("logs").await;
+        let _ = create_dir("logs").await;
 
         let files = vec![
             MultipartField::File(
@@ -435,6 +435,7 @@ mod tests {
         };
         let is_updated = instance.handle_package_build_output(&"test-package".to_string(), build_data).await;
 
+        assert!(is_updated);
         assert!(instance.path.join("aur-build-cli-0.10.0-1-any.pkg.tar.zst").exists());
         let package = instance.get_package_by_name(&"test-package".to_string()).unwrap();
         assert_eq!(PackageStatus::BUILT, package.state.status);
@@ -472,9 +473,10 @@ mod tests {
         };
         let is_updated = instance.handle_package_build_output(&"test-package".to_string(), build_data).await;
 
+        assert!(is_updated);
         let package = instance.get_package_by_name(&"test-package".to_string()).unwrap();
         assert_eq!(PackageStatus::FAILED, package.state.status);
-        assert!(package.state.last_built.is_none());
+        assert!(package.state.last_built.is_some());
         assert!(package.state.last_built_version.is_none());
         assert_eq!(0, package.state.files.len());
         assert!(Path::new("logs/log-file.log").exists());
