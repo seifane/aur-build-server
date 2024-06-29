@@ -14,7 +14,8 @@ Should build all binaries `aur-build-server`, `aur-build-worker`, `aur-build-cli
 
 # Running
 
-The project is split into two main parts. 
+The project is split into two main parts. This is meant to facilitate cloud deployment in Kubernetes for example.
+Spawning more workers to build more packages concurrently.
 
 ## Server
 The server is in charge of packages, distribution of the repository and dispatching them to workers.
@@ -34,7 +35,9 @@ The better way would be to run it with a user that has a no password root author
 Right now there's a Dockerfile that does that.
 
 
-## Docker 
+## Docker (recommended)
+Docker hub images are available at https://hub.docker.com/r/seifane/aur-build-server.
+
 You can use the provider docker compose setup to start the project.
 
 ```bash
@@ -80,8 +83,10 @@ A CLI is provided to interface with the server. It currently allows to fetch the
 Usage: aur-build-cli [OPTIONS] <COMMAND>
 
 Commands:
+  workers   Get the list of current workers
   packages  Packages related commands. list, rebuild
   logs      <package> Fetch the logs for the given package
+  webhooks  Webhooks related commands. trigger
   profiles  Profile related commands. list, create, delete, set-default
   help      Print this message or the help of the given subcommand(s)
 
@@ -91,12 +96,14 @@ Options:
   -p, --profile <PROFILE>    Profile name to use
   -h, --help                 Print help
   -V, --version              Print version
+
 ```
 
 ## API
 
 - `GET /repo` Exposes the created Arch repository
 - `GET /api/workers` Returns a list of currently connected workers and their status
+- `DELETE /api/workers/:id` Evict a work from the pool. The connection will be terminated and the worker should terminate.
 - `GET /api/packages` Json response including current state of build of all packages
 - `POST /api/rebuild` Queues the specified packages for a rebuild, if no specified packages queues all packages
   - ```json
@@ -182,5 +189,5 @@ Example:
 ```
 
 # Roadmap
+- [ ] Support repos from custom sources that are not aur (git repositories, ...)
 - [ ] Add package version history, ability to keep some amount of version of the same package and keep serving them.
-- [ ] Support repos from custom sources that are not aur (git, ...) 

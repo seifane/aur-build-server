@@ -104,15 +104,6 @@ impl Worker {
             is_authenticated: self.is_authenticated,
         }
     }
-
-    pub fn to_http_response(&self) -> WorkerResponse {
-        WorkerResponse {
-            id: self.id,
-            status: self.status,
-            current_job: self.current_job.clone(),
-            is_authenticated: self.is_authenticated,
-        }
-    }
 }
 
 impl Drop for Worker {
