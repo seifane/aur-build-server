@@ -21,8 +21,10 @@ pub struct Args {
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Get the list of current workers
-    Workers {},
-
+    Workers {
+        #[command(subcommand)]
+        command: WorkerCommands,
+    },
     /// Packages related commands. list, rebuild.
     Packages {
         #[command(subcommand)]
@@ -32,6 +34,11 @@ pub enum Commands {
     Logs {
         package: String,
     },
+    /// Webhooks related commands. trigger.
+    Webhooks {
+        #[command(subcommand)]
+        command: WebhookCommands
+    },
     /// Profile related commands. list, create, delete, set-default.
     Profiles {
         #[command(subcommand)]
@@ -40,11 +47,42 @@ pub enum Commands {
 }
 
 #[derive(Subcommand, Debug)]
+pub enum WorkerCommands {
+    /// List workers
+    List {},
+    ///  Evict the worker with the given id
+    Evict {
+        id: usize
+    }
+}
+
+#[derive(Subcommand, Debug)]
 pub enum PackageCommands {
     /// List packages
     List {},
     /// package1 package2 [...] Rebuild specified packages, if no specified packages rebuild all.
-    Rebuild { packages: Vec<String> }
+    Rebuild {
+        packages: Vec<String>,
+        #[clap(long, short, action)]
+        force: bool
+    }
+}
+
+#[derive(Subcommand, Debug)]
+pub enum WebhookCommands {
+    /// Manually trigger a webhook
+    Trigger {
+        #[command(subcommand)]
+        command: WebhookTriggerCommands
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum WebhookTriggerCommands {
+    /// Manually trigger a PackageUpdated webhook
+    PackageUpdated {
+        package_name: String
+    },
 }
 
 #[derive(Subcommand, Debug)]

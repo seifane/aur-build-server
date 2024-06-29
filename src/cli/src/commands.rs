@@ -27,21 +27,31 @@ pub fn workers_list(api: &Api) {
         .unwrap())
 }
 
+pub fn workers_delete(api: &Api, id: usize) {
+    let res = api.delete_worker(id).unwrap();
+    if res.success {
+        println!("Evicted worker successfully");
+    } else {
+        println!("Failed to evict worker, is the id correct ?");
+    }
+}
+
 pub fn packages_list(api: &Api) {
     let packages_res = api.get_packages().unwrap();
 
     let mut rows = Vec::new();
     for package in packages_res.iter() {
-        let mut formatted_date = String::new();
+        let mut last_built_date = "Never".to_string();
         if let Some(datetime) = package.last_built {
-            formatted_date = datetime.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
+            last_built_date = datetime.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string();
         }
 
         rows.push(vec![
             (&package.package.name).cell(),
             package.status.to_string().cell().foreground_color(get_color_from_package_status(&package.status)),
             package.last_built_version.as_ref().unwrap_or(&"None".to_string()).cell(),
-            formatted_date.cell()
+            last_built_date.cell(),
+            package.last_error.as_ref().unwrap_or(&"None".to_string()).cell(),
         ]);
 
     }
@@ -49,15 +59,16 @@ pub fn packages_list(api: &Api) {
         .title(vec![
             "Name".cell().bold(true),
             "Status".cell().bold(true),
-            "Last Built version".cell().bold(true),
-            "Last Built date".cell().bold(true),
+            "Last Built Version".cell().bold(true),
+            "Last Built Date".cell().bold(true),
+            "Last Error".cell().bold(true)
         ])
         .display()
         .unwrap());
 }
 
-pub fn packages_rebuild(api: &Api, packages: Vec<String>) {
-    let res = api.rebuild_packages(packages);
+pub fn packages_rebuild(api: &Api, packages: Vec<String>, force: bool) {
+    let res = api.rebuild_packages(packages, force);
     match res {
         Ok(res) => {
             if res.success {
@@ -81,6 +92,22 @@ pub fn logs_get(api: &Api, package: String) {
         }
         Err(err) => {
             println!("Failed to fetch logs with error {:?}", err);
+        }
+    }
+}
+
+pub fn webhook_trigger_package_update(api: &Api, package: &String) {
+    let res = api.webhook_trigger_package(package);
+    match res {
+        Ok(response) => {
+            if response.success {
+                println!("Webhook sent successfully");
+            } else {
+                println!("Failed to send webhook, check the package name");
+            }
+        }
+        Err(e) => {
+            println!("Failed to send webhook: {}", e.to_string())
         }
     }
 }
@@ -148,4 +175,3 @@ pub fn profile_set_default(config: &mut ProfileConfig, name: &String)
 
     println!("Default profile set");
 }
-

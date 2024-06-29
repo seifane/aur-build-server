@@ -1,0 +1,34 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <style>
+        td {
+            padding-right: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Index of aur-build-server repo {{ name }}</h1>
+    <hr>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Last modified</th>
+                <th>Size</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#each files}}
+            <tr>
+                <td><a href="{{name}}">{{name}}</a> </td>
+                <td>{{date_modified_iso}}</td>
+                <td>{{size}}</td>
+            </tr>
+            {{/each}}
+        </tbody>
+    </table>
+    <hr>
+</body>
+</html>

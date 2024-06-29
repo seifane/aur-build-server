@@ -7,7 +7,8 @@ pub struct PackageState {
     pub status: PackageStatus,
     pub last_built: Option<DateTime<Utc>>,
     pub files: Vec<String>,
-    pub last_built_version: Option<String>
+    pub last_built_version: Option<String>,
+    pub last_error: Option<String>,
 }
 
 impl PackageState {
@@ -18,6 +19,7 @@ impl PackageState {
             last_built: None,
             files: Vec::new(),
             last_built_version: None,
+            last_error: None
         }
     }
 }

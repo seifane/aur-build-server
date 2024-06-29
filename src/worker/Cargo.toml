@@ -1,6 +1,6 @@
 [package]
 name = "aur-build-worker"
-version = "0.10.0"
+version = "0.11.0"
 edition = "2021"
 
 [[bin]]
@@ -14,32 +14,32 @@ common = { path = "../common" }
 clap = { version = "4.4.11", features = ["derive"] }
 
 warp = "0.3.6"
-reqwest = { version = "0.11", features = ["multipart", "json", "stream"] }
+reqwest = { version = "0.12.4", features = ["multipart", "json", "stream"] }
 
 hyper = { version = "=0.14.28", features = ["full"] }
 
-chrono = { version = "0.4.31", features = ["serde"] }
+chrono = { version = "0.4.38", features = ["serde"] }
 
-serde = { version = "1.0.193", features = ["derive"] }
-serde_json = "1.0.108"
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.117"
 
-tokio = { version = "1.35.1", features = ["full"] }
-tokio-stream = "0.1.14"
+tokio = { version = "1.37.0", features = ["full"] }
+tokio-stream = "0.1.15"
 tokio-tungstenite = "0.21.0"
 
-futures = "0.3.29"
-futures-util = { version = "0.3.29", default-features = false, features = ["std", "sink"] }
+futures = "0.3.30"
+futures-util = { version = "0.3.30", default-features = false, features = ["std", "sink"] }
 
-git2 = "0.18.1"
+git2 = "0.18.3"
 
-relative-path = "1.9.0"
+relative-path = "1.9.3"
 
-log = "0.4.20"
-simplelog = "0.12.1"
+log = "0.4.21"
+simplelog = "0.12.2"
 
 srcinfo = "1.1.0"
 
-async-recursion = "1.0.5"
+async-recursion = "1.1.1"
 sha2 = "0.10.8"
 base16ct = { version = "0.2.0", features = ["alloc"] }
 

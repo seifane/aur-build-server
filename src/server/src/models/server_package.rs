@@ -27,23 +27,18 @@ impl ServerPackage {
         self.state.status = status;
     }
 
-    pub fn get_state(&self) -> &PackageState
-    {
-        &self.state
+    pub fn clear_last_built_version(&mut self) {
+        self.state.last_built_version = None;
     }
 
-    pub fn set_state(&mut self, state: PackageState)
-    {
-        self.state = state;
-    }
-
-    pub fn get_response(&self) -> PackageResponse
+    pub fn as_http_response(&self) -> PackageResponse
     {
         PackageResponse {
             package: self.package.clone(),
             status: self.state.status,
             last_built: self.state.last_built.clone(),
             last_built_version: self.state.last_built_version.clone(),
+            last_error: self.state.last_error.clone()
         }
     }
 

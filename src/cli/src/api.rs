@@ -31,7 +31,7 @@ impl Api {
         Ok(self.client.get(format!("{}/api/packages", self.host)).send()?.json()?)
     }
 
-    pub fn rebuild_packages(&self, packages: Vec<String>) -> Result<SuccessResponse, Box<dyn Error>>
+    pub fn rebuild_packages(&self, packages: Vec<String>, force: bool) -> Result<SuccessResponse, Box<dyn Error>>
     {
         let packages = if packages.is_empty() {
             None
@@ -41,6 +41,7 @@ impl Api {
 
         let payload = PackageRebuildPayload {
             packages,
+            force: Some(force)
         };
 
         let response: SuccessResponse = self.client.post(format!("{}/api/rebuild", self.host))
@@ -61,6 +62,24 @@ impl Api {
 
     pub fn get_workers(&self) -> Result<Vec<WorkerResponse>, Box<dyn Error>> {
         let response: Vec<WorkerResponse> = self.client.get(format!("{}/api/workers", self.host))
+            .send()?
+            .json()?;
+
+        Ok(response)
+    }
+
+    pub fn delete_worker(&self, id: usize) -> Result<SuccessResponse, Box<dyn Error>> {
+        Ok(
+            self.client
+                .delete(format!("{}/api/workers/{}", self.host, id))
+                .send()?
+                .json()?
+        )
+    }
+
+    pub fn webhook_trigger_package(&self, package_name: &String) -> Result<SuccessResponse, Box<dyn Error>>
+    {
+        let response: SuccessResponse = self.client.post(format!("{}/api/webhook/trigger/package_updated/{}", self.host, package_name))
             .send()?
             .json()?;
 

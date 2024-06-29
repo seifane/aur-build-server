@@ -8,8 +8,8 @@ use std::process::exit;
 use clap::Parser;
 use colored::Colorize;
 use crate::api::Api;
-use crate::args::{Args, Commands, PackageCommands, ProfileCommands};
-use crate::commands::{logs_get, packages_list, packages_rebuild, profile_create, profile_delete, profile_list, profile_set_default, workers_list};
+use crate::args::{Args, Commands, PackageCommands, ProfileCommands, WebhookCommands, WebhookTriggerCommands, WorkerCommands};
+use crate::commands::{logs_get, packages_list, packages_rebuild, profile_create, profile_delete, profile_list, profile_set_default, webhook_trigger_package_update, workers_delete, workers_list};
 use crate::profile::ProfileConfig;
 
 fn get_api(args: &Args, profile_config: &ProfileConfig) -> Api {
@@ -32,7 +32,7 @@ fn get_api(args: &Args, profile_config: &ProfileConfig) -> Api {
 
             profile.unwrap()
         };
-        println!("Using profile {}\n", profile.name.bold());
+        println!("Using profile {}", profile.name.bold());
         Api::new(profile.base_url.clone(), profile.api_key.clone()).unwrap()
     };
 
@@ -45,18 +45,32 @@ fn main() {
     let mut profile_config = ProfileConfig::from_file().expect("Unable to load profile config");
 
     match &args.command {
-        Commands::Workers {} => {
+        Commands::Workers { command} => {
             let api = get_api(&args, &profile_config);
-            workers_list(&api)
+            match command {
+                WorkerCommands::List { .. } => workers_list(&api),
+                WorkerCommands::Evict { id } => workers_delete(&api, *id)
+            }
         },
         Commands::Packages { command } => {
             let api = get_api(&args, &profile_config);
             match command {
                 PackageCommands::List {} => packages_list(&api),
-                PackageCommands::Rebuild { packages } => packages_rebuild(&api, packages.clone()),
+                PackageCommands::Rebuild { packages, force } => packages_rebuild(&api, packages.clone(), *force),
             }
         }
         Commands::Logs { package} => logs_get(&get_api(&args, &profile_config), package.clone()),
+        Commands::Webhooks {command} => {
+            match command {
+                WebhookCommands::Trigger { command } => {
+                    match command {
+                        WebhookTriggerCommands::PackageUpdated { package_name } => {
+                            webhook_trigger_package_update(&get_api(&args, &profile_config), package_name);
+                        }
+                    }
+                }
+            }
+        }
         Commands::Profiles { command } => {
             match command {
                 ProfileCommands::List {} => profile_list(&profile_config),

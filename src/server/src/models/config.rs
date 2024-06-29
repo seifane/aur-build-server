@@ -12,9 +12,11 @@ pub struct Config {
     pub rebuild_time: Option<u64>,
     pub packages: Vec<PackageDefinition>,
 
-    pub serve_path: Option<String>,
+    serve_path: Option<String>,
 
     port: Option<u16>,
+
+    pub webhooks: Option<Vec<String>>,
 }
 
 impl Config {
@@ -35,7 +37,6 @@ impl Config {
     
     pub fn get_serve_path(&self) -> String
     {
-        let path = self.serve_path.clone().unwrap_or("serve/".to_string());
-        path.trim().trim_end_matches("/").to_string()
+        self.serve_path.clone().unwrap_or("serve/".to_string())
     }
 }
