@@ -43,7 +43,7 @@ See the docker part of the docs for more info.
 - Get the project running
   - The fastest way to get started is through the provided docker compose stack. See how to get started with docker [here](./docs/docker.md). 
   - You can also run the project locally. See more [here](./docs/running_locally.md). 
-  - Kubernetes manifest are provided as reference. See more here.
+  - Kubernetes manifest are provided as reference. See more [here](./docs/kubernetes.md).
 - After setting up the server you will need to add to your pacman config. See more [here](./docs/adding_repo_pacman.md).
 
 ## Documentation
