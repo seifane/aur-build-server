@@ -1,12 +1,12 @@
 mod manager;
 
 use std::collections::HashMap;
-use std::error::Error;
+use anyhow::Result;
 use std::path::PathBuf;
 use std::sync::Arc;
 use chrono::{Duration, Utc};
 use log::{debug, error, info, warn};
-use std::fs::{OpenOptions};
+use std::fs::OpenOptions;
 use std::ops::Deref;
 use tokio::fs::read_to_string;
 use tokio::sync::{Mutex, RwLock};
@@ -20,6 +20,7 @@ use crate::repository::manager::RepositoryManager;
 
 pub struct Repository {
     path: PathBuf,
+    build_logs_path: PathBuf,
     rebuild_interval: Option<u64>,
 
     packages: HashMap<String, ServerPackage>,
@@ -28,7 +29,7 @@ pub struct Repository {
 
 impl Repository
 {
-    pub async fn from_config(config: Arc<RwLock<Config>>) -> Result<Self, Box<dyn Error>>
+    pub async fn from_config(config: Arc<RwLock<Config>>) -> Result<Self>
     {
         let mut packages: HashMap<String, ServerPackage> = HashMap::new();
 
@@ -46,7 +47,8 @@ impl Repository
         let manager = RepositoryManager::from_config(config.read().await.deref()).await?;
 
         Ok(Repository {
-            path: PathBuf::from(config.read().await.get_serve_path()),
+            path: config.read().await.serve_path.clone(),
+            build_logs_path: config.read().await.build_logs_path.clone(),
             rebuild_interval: config.read().await.rebuild_time,
 
             packages,
@@ -54,7 +56,7 @@ impl Repository
         })
     }
 
-    pub async fn try_restore_packages_states(&mut self) -> Result<(), Box<dyn Error>> {
+    pub async fn try_restore_packages_states(&mut self) -> Result<()> {
         let contents = read_to_string(self.path.join("packages_state.json")).await?;
         let package_states: HashMap<String, PackageState> = serde_json::from_str(&contents)?;
 
@@ -164,11 +166,17 @@ impl Repository
     }
 
     pub async fn handle_package_build_output(&mut self, package_name: &String, package_build_data: PackageBuildData<'_>) -> bool {
+        if !self.build_logs_path.exists() {
+            if let Err(e) = tokio::fs::create_dir_all(&self.build_logs_path).await {
+                warn!("Unable to create build logs directory: {}", e);
+            }
+        }
+
         if let Some(files) = package_build_data.log_files {
             for file in files.iter() {
                 if let MultipartFile(filename, content) = file {
-                    if let Err(e) = tokio::fs::write(format!("logs/{}", filename), content).await {
-                        error!("Failed to write log file {}: {}", filename, e);
+                    if let Err(e) = tokio::fs::write(&self.build_logs_path.join(filename), content).await {
+                        error!("Failed to write log file '{}': {}", filename, e);
                     }
                 }
             }
@@ -179,7 +187,7 @@ impl Repository
             for file in files.iter() {
                 if let MultipartFile(filename, content) = file {
                     let path = self.path.join(filename);
-                    debug!("Copying {filename} to {:?}...", path.as_path());
+                    info!("Copying {filename} to {:?}...", path.as_path());
                     tokio::fs::write(path, content).await.unwrap();
                     package_files.push(filename.clone());
                 }
@@ -233,7 +241,7 @@ impl Repository
         is_updated
     }
 
-    pub async fn rebuild_repo(&self) -> Result<(), Box<dyn Error + Send + Sync>> {
+    pub async fn rebuild_repo(&self) -> Result<()> {
         let mut package_files = Vec::new();
         for (_, package) in self.packages.iter() {
             for file in package.state.files.iter() {
@@ -271,12 +279,13 @@ mod tests {
 
         Repository {
             path: PathBuf::from("/tmp/aur-build-server-test/repo"),
+            build_logs_path: PathBuf::from("/tmp/aur-build-server-test/logs"),
             rebuild_interval: None,
             packages: Default::default(),
             manager:
             Arc::new(
                 Mutex::new(
-                    RepositoryManager::new("test".to_string(), None, "/tmp/aur-build-server-test/repo".to_string())
+                    RepositoryManager::new("test".to_string(), None, PathBuf::from("/tmp/aur-build-server-test/repo"))
                 .await.unwrap()
                 )
             ),
@@ -443,7 +452,7 @@ mod tests {
         assert_eq!("11.2.3", package.state.last_built_version.as_ref().unwrap().as_str());
         assert_eq!(1, package.state.files.len());
         assert_eq!("aur-build-cli-0.10.0-1-any.pkg.tar.zst", package.state.files[0].as_str());
-        assert!(Path::new("logs/log-file.log").exists());
+        assert!(Path::new("/tmp/aur-build-server-test/logs/log-file.log").exists());
 
         let database_path = PathBuf::from("/tmp/aur-build-server-test/repo/test.db");
         assert!(database_path.exists());
@@ -479,7 +488,7 @@ mod tests {
         assert!(package.state.last_built.is_some());
         assert!(package.state.last_built_version.is_none());
         assert_eq!(0, package.state.files.len());
-        assert!(Path::new("logs/log-file.log").exists());
+        assert!(Path::new("/tmp/aur-build-server-test/logs/log-file.log").exists());
 
         remove_dir_all("logs").await.unwrap();
     }

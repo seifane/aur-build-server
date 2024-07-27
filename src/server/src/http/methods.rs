@@ -1,27 +1,31 @@
 use std::convert::Infallible;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Component, PathBuf};
+use std::path::Component;
 use std::sync::Arc;
+
 use chrono::{DateTime, Utc};
 use handlebars::Handlebars;
 use serde::Serialize;
-use tokio::fs::{read_dir};
-use tokio::sync::{RwLock};
-use warp::multipart::FormData;
+use tokio::fs::read_dir;
+use tokio::sync::RwLock;
 use warp::{reply, Reply};
 use warp::http::StatusCode;
+use warp::multipart::FormData;
+
 use common::http::payloads::PackageRebuildPayload;
 use common::http::responses::{SuccessResponse, WorkerResponse};
+
 use crate::http::models::PackageBuildData;
-use crate::http::multipart::MultipartField::{Text};
-use crate::http::multipart::{parse_multipart};
+use crate::http::multipart::MultipartField::Text;
+use crate::http::multipart::parse_multipart;
+use crate::models::config::Config;
 use crate::orchestrator::Orchestrator;
 
-pub async fn get_packages(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible> {
+pub async fn get_packages(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl Reply, Infallible> {
     Ok::<_, Infallible>(reply::json(&orchestrator.read().await.repository.get_packages().iter().map(|i| i.1.as_http_response()).collect::<Vec<_>>()))
 }
 
-pub async fn get_workers(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl warp::Reply, Infallible> {
+pub async fn get_workers(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl Reply, Infallible> {
     Ok::<_, Infallible>(reply::json(&orchestrator.read().await.worker_manager.workers.values().map(|it| it.to_http_response()).collect::<Vec<WorkerResponse>>()))
 }
 
@@ -30,18 +34,21 @@ pub async fn remove_worker(orchestrator: Arc<RwLock<Orchestrator>>, id: usize) -
     Ok(reply::json(&SuccessResponse::from(worker.is_some())))
 }
 
-pub async fn get_logs(package: String) -> Result<impl warp::Reply, Infallible> {
-    let path = PathBuf::from(format!("logs/{}.log", package));
+pub async fn get_logs(config: Arc<RwLock<Config>>, package: String) -> Result<impl Reply, Infallible> {
+    let path = config.read().await.build_logs_path.join(format!("{}.log", package));
     // Prevent path traversal
     if path.components().into_iter().any(|x| x == Component::ParentDir) {
         return Ok(reply::with_status("".to_string(), StatusCode::INTERNAL_SERVER_ERROR));
     }
 
-    let content = tokio::fs::read_to_string(path.to_str().unwrap()).await.unwrap_or("".to_string());
+    let content = tokio::fs::read_to_string(path.to_str().unwrap()).await.unwrap_or_else(|e| {
+        format!("Failed to read file: {}", e)
+    });
+
     Ok(reply::with_status(content, StatusCode::OK))
 }
 
-pub async fn rebuild_packages(orchestrator: Arc<RwLock<Orchestrator>>, payload: PackageRebuildPayload) -> Result<impl warp::Reply, Infallible>
+pub async fn rebuild_packages(orchestrator: Arc<RwLock<Orchestrator>>, payload: PackageRebuildPayload) -> Result<impl Reply, Infallible>
 {
     let force = payload.force.unwrap_or(false);
 
@@ -56,7 +63,7 @@ pub async fn rebuild_packages(orchestrator: Arc<RwLock<Orchestrator>>, payload: 
     Ok(reply::json(&SuccessResponse::from(true)))
 }
 
-pub async fn webhook_trigger_package(orchestrator: Arc<RwLock<Orchestrator>>, package_name: String) -> Result<impl warp::Reply, Infallible>
+pub async fn webhook_trigger_package(orchestrator: Arc<RwLock<Orchestrator>>, package_name: String) -> Result<impl Reply, Infallible>
 {
     let orchestrator_lock = orchestrator.write().await;
     let package = orchestrator_lock.repository.get_package_by_name(&package_name);
@@ -73,7 +80,7 @@ pub async fn webhook_trigger_package(orchestrator: Arc<RwLock<Orchestrator>>, pa
 }
 
 
-pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormData) -> Result<impl warp::Reply, Infallible>
+pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormData) -> Result<impl Reply, Infallible>
 {
     let fields = parse_multipart(form).await?;
 
@@ -142,7 +149,7 @@ struct File {
 pub async fn index_repo(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl Reply, Infallible>
 {
     let template_content = include_str!("./pages/repo_index.html");
-    let path = orchestrator.read().await.config.read().await.get_serve_path();
+    let path = orchestrator.read().await.config.read().await.serve_path.clone();
     let mut files = Vec::new();
 
     if let Ok(mut dir) = read_dir(path).await {

@@ -8,17 +8,20 @@ services:
       cache_from:
         - aur-build-server:local
     command: --log-level debug
-    environment:
-      - SIGN_KEY_PATH=/app/key.asc
+    environment:                      # Comment this line if you are not signing your packages
+      - SIGN_KEY_PATH=/app/key.asc    # Comment this line if you are not signing your packages
     ports:
       - "8888:8888"
     volumes:
       - "./config_server.json:/app/config_server.json"
-      - "./mount/logs:/app/logs"
-      - "./mount/serve:/app/serve"
-      - "./key.asc:/app/key.asc"
+      - "./server/logs:/app/server/logs"
+      - "./server/serve:/app/server/serve"
+      - "./key.asc:/app/key.asc" # Comment this line if you are not signing your packages
+
   worker:
     image: aur-build-worker:local
+    security_opt:
+      - seccomp:./docker/seccomp.json
     build:
       context: .
       dockerfile: Dockerfile
@@ -28,3 +31,4 @@ services:
     command: --log-level debug
     volumes:
       - "./config_worker.json:/app/config_worker.json"
+      - "./config:/app/config"

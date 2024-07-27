@@ -1,7 +1,7 @@
 # Maintainer: Seifane Idouchach <seifane53@gmail.com>
 
 pkgname=aur-build-server
-pkgver=0.11.0
+pkgver=0.20.0
 pkgrel=1
 epoch=
 pkgdesc="Orchestrator for aur-build-server"

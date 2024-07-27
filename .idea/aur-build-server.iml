@@ -7,8 +7,21 @@
       <sourceFolder url="file://$MODULE_DIR$/src/common/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/server/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/worker/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/src/server/tests" isTestSource="true" />
+      <excludeFolder url="file://$MODULE_DIR$/data" />
+      <excludeFolder url="file://$MODULE_DIR$/mount" />
+      <excludeFolder url="file://$MODULE_DIR$/sandbox" />
+      <excludeFolder url="file://$MODULE_DIR$/serve" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/worker_logs" />
+      <excludeFolder url="file://$MODULE_DIR$/src/worker/data" />
+      <excludeFolder url="file://$MODULE_DIR$/src/worker/sandbox" />
+      <excludeFolder url="file://$MODULE_DIR$/src/worker/test_output_logs" />
+      <excludeFolder url="file://$MODULE_DIR$/src/worker/worker_logs" />
+      <excludeFolder url="file://$MODULE_DIR$/worker" />
+      <excludeFolder url="file://$MODULE_DIR$/server" />
+      <excludeFolder url="file://$MODULE_DIR$/src/worker/test" />
+      <excludeFolder url="file://$MODULE_DIR$/src/worker/tests" />
+      <excludeFolder url="file://$MODULE_DIR$/src/server/tests" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

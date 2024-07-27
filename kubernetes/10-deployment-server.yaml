@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aurbuild-server-app
+  namespace: aurbuild
+spec:
+  selector:
+    matchLabels:
+      app: aurbuild-server-app
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: aurbuild-server-app
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+      - name: aurbuild-server-app
+        image: seifane/aur-build-server:0.20.0-server
+        imagePullPolicy: Always
+        args: ['--log-level', 'info']
+#        Uncomment this if you are signing packages
+#        env:
+#          - name: SIGN_KEY_PATH
+#            value: /app/config/key.asc
+        ports:
+          - containerPort: 8080
+        volumeMounts:
+          - mountPath: "/app/config_server.json"
+            name: config
+            subPath: config_server.json
+#            Uncomment this if you are signing packages
+#          - mountPath: "/app/config/key.asc"
+#            name: sign-key
+#            subPath: key.asc
+          - mountPath: "/app/server"
+            name: data
+      volumes:
+        - name: config
+          configMap:
+            name: app-config
+#          Uncomment this if you are signing packages
+#        - name: sign-key
+#          configMap:
+#            name: sign-key
+        - name: data
+          persistentVolumeClaim:
+            claimName: server-data

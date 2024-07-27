@@ -1,61 +1,65 @@
-use std::sync::Arc;
-use log::info;
+use anyhow::{Context, Result};
 use tokio::sync::mpsc::{UnboundedSender};
-use tokio::sync::mpsc::error::SendError;
-use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 use common::messages::{WebsocketMessage};
 use common::models::{PackageJob, WorkerStatus};
+use crate::models::config::Config;
 use crate::orchestrator::http::HttpClient;
 
+pub struct State {
+    pub config: Config,
 
-pub struct Worker {
-    sender: UnboundedSender<WebsocketMessage>,
-    status: WorkerStatus,
-    pub current_package: Option<PackageJob>,
-    http_client: Arc<Mutex<HttpClient>>,
+    pub current_job: Option<PackageJob>,
+    pub monitor_handle: Option<JoinHandle<()>>,
+    pub status: WorkerStatus,
+
+    pub sender: Option<UnboundedSender<WebsocketMessage>>,
 }
 
-impl Worker {
-    pub fn new(
-        sender: UnboundedSender<WebsocketMessage>,
-        base_url: &String,
-        api_key: &String
-    ) -> Worker {
-        Worker {
-            sender,
+impl State {
+    pub fn from_config(config: &Config) -> State {
+        State {
+            config: config.clone(),
+            current_job: None,
+            monitor_handle: None,
             status: WorkerStatus::STANDBY,
-            current_package: None,
-            http_client: Arc::new(Mutex::new(HttpClient::new(base_url.clone(), api_key.clone()))),
+
+            sender: None
         }
     }
 
-    pub fn set_current_package(&mut self, current_package: Option<PackageJob>) {
-        self.current_package = current_package;
+    pub fn clear_job(&mut self) -> Result<()>
+    {
+        self.status = WorkerStatus::STANDBY;
+        self.current_job = None;
+        self.push_state()
     }
 
-    pub fn set_state(&mut self, status: WorkerStatus) -> Result<(), SendError<WebsocketMessage>> {
+    pub fn set_status(&mut self, status: WorkerStatus) -> Result<()>
+    {
         self.status = status;
         self.push_state()
     }
 
-    pub fn push_state(&mut self) -> Result<(), SendError<WebsocketMessage>> {
-        let package = match &self.current_package {
-            None => None,
-            Some(current_package) => Some(current_package.definition.name.clone())
-        };
+    pub fn push_state(&self) -> Result<()>
+    {
+        if let Some(sender) = self.sender.as_ref() {
+            let mut package = None;
 
-        let payload = WebsocketMessage::WorkerStatusUpdate {
-            status: self.status,
-            package,
-        };
+            if let Some(job) = self.current_job.as_ref() {
+                package = Some(job.definition.name.clone());
+            }
 
-        info!("Status = {:?}", payload);
-
-        self.sender.send(payload)
+            sender.send(WebsocketMessage::WorkerStatusUpdate {
+                status: self.status.clone(),
+                package
+            }).with_context(|| "Failed to send message via sender".to_string())?;
+        }
+        Ok(())
     }
 
-    pub fn get_http_client(&self) -> Arc<Mutex<HttpClient>>
+    pub fn get_http_client(&self) -> HttpClient
     {
-        self.http_client.clone()
+        HttpClient::from_config(&self.config)
     }
 }

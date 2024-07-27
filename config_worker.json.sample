@@ -1,5 +1,17 @@
 {
   "base_url": "http://server:8888",
   "base_url_ws": "ws://server:8888",
-  "api_key": "changeme"
+  "api_key": "changeme",
+
+  "data_path": "./worker/data",
+  "sandbox_path": "./worker/sandbox",
+  "build_logs_path": "./worker/logs",
+
+  "pacman_config_path": "./config/pacman.conf",
+  "pacman_mirrorlist_path": "./config/mirrorlist",
+
+  "log_path": "./aur-build-worker.log",
+  "log_level": "info",
+
+  "force_base_sandbox_create": false
 }

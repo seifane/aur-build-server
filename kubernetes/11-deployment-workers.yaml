@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aurbuild-worker-app
+  namespace: aurbuild
+spec:
+  selector:
+    matchLabels:
+      app: aurbuild-worker-app
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: aurbuild-worker-app
+    spec:
+      containers:
+      - name: aurbuild-worker-app
+        image: seifane/aur-build-server:0.20.0-worker
+        imagePullPolicy: Always
+        args: ['--log-level', 'info']
+        securityContext:
+          seccompProfile:
+            type: Localhost
+            localhostProfile: profiles/aur-build.json
+        volumeMounts:
+          - mountPath: "/app/config_worker.json"
+            name: config
+            subPath: config_worker.json
+          - mountPath: "/app/config/pacman.conf"
+            name: config
+            subPath: pacman.conf
+          - mountPath: "/app/config/mirrorlist"
+            name: config
+            subPath: mirrorlist
+      volumes:
+        - name: config
+          configMap:
+            name: app-config

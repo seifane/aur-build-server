@@ -1,4 +1,4 @@
-use std::error::Error;
+use anyhow::{Context, Result};
 use std::path::PathBuf;
 
 use log::{debug, error, info};
@@ -14,12 +14,12 @@ pub struct RepositoryManager {
 }
 
 impl RepositoryManager {
-    pub async fn new(repo_name: String, sign_key: Option<String>, path: String) -> Result<Self, Box<dyn Error>>
+    pub async fn new(repo_name: String, sign_key: Option<String>, path: PathBuf) -> Result<Self>
     {
         let instance = RepositoryManager {
             repo_name,
             sign_key,
-            path: PathBuf::from(path),
+            path,
         };
 
         if !instance.path.exists() {
@@ -29,15 +29,16 @@ impl RepositoryManager {
         Ok(instance)
     }
 
-    pub async fn from_config(config: &Config) -> Result<Self, Box<dyn Error>>
+    pub async fn from_config(config: &Config) -> Result<Self>
     {
-        Self::new(config.repo_name.clone(), config.sign_key.clone(), config.get_serve_path()).await
+        Self::new(config.repo_name.clone(), config.sign_key.clone(), config.serve_path.clone()).await
     }
 
     #[allow(dead_code)]
-    pub async fn get_package_files(&self) -> Result<Vec<String>, Box<dyn Error + Send + Sync>>
+    pub async fn get_package_files(&self) -> Result<Vec<String>>
     {
-        let mut dir = tokio::fs::read_dir(&self.path).await?;
+        let mut dir = tokio::fs::read_dir(&self.path).await
+            .with_context(|| format!("Failed to read directory {:?}", self.path))?;
 
         let mut packages = Vec::new();
 
@@ -50,7 +51,7 @@ impl RepositoryManager {
         Ok(packages)
     }
 
-    pub async fn add_packages_to_repo(&self, package_files: Vec<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
+    pub async fn add_packages_to_repo(&self, package_files: Vec<String>) -> Result<()> {
         if let Some(sign_key) = self.sign_key.as_ref() {
             for file in package_files.iter() {
                 let out = Command::new("gpg")
@@ -87,7 +88,7 @@ impl RepositoryManager {
         return self.repo_add_cmd(package_files).await;
     }
 
-    async fn repo_add_cmd(&self, package_files: Vec<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
+    async fn repo_add_cmd(&self, package_files: Vec<String>) -> Result<()> {
         debug!("Building repository");
 
         if package_files.is_empty() {
@@ -111,8 +112,10 @@ impl RepositoryManager {
 
         let out = Command::new("repo-add")
             .current_dir(&self.path)
-            .args(args)
-            .output().await?;
+            .args(&args)
+            .output()
+            .await
+            .with_context(|| format!("Failed to run repo-add with args {:?}", args))?;
 
         debug!("repository-add output exit code : {:?} {:?} {:?}", out.status.code() ,String::from_utf8(out.stdout), String::from_utf8(out.stderr));
 
@@ -132,7 +135,7 @@ mod tests {
     async fn setup() -> RepositoryManager {
         let _ = remove_dir_all("/tmp/aur-build-server-test").await;
 
-        RepositoryManager::new("test".to_string(), None, "/tmp/aur-build-server-test/repo".to_string())
+        RepositoryManager::new("test".to_string(), None, PathBuf::from("/tmp/aur-build-server-test/repo"))
             .await.unwrap()
     }
 

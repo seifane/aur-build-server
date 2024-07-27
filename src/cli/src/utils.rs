@@ -5,6 +5,7 @@ pub fn get_color_from_worker_status(status: &WorkerStatus) -> Option<Color>
 {
     match status {
         WorkerStatus::UNKNOWN => Some(Color::Red),
+        WorkerStatus::INIT => Some(Color::Yellow),
         WorkerStatus::STANDBY => Some(Color::Green),
         WorkerStatus::DISPATCHED => Some(Color::Magenta),
         WorkerStatus::UPDATING => Some(Color::Magenta),

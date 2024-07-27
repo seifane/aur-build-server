@@ -38,6 +38,7 @@ pub enum WorkerStatus {
     UNKNOWN,
     STANDBY,
     DISPATCHED,
+    INIT,
     UPDATING,
     WORKING,
     UPLOADING,

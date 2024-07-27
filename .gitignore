@@ -1,9 +1,13 @@
 target/
-config/
-logs/
-mount/
-worker_logs/
-serve/
+server/
+worker/
+
+src/worker/tests
+
+key.asc
+
+.gitlab-ci-local-variables.yml
+.gitlab-ci-local
 
 arch-packages/aur-build-cli
 !arch-packages/aur-build-cli/PKGBUILD
@@ -14,9 +18,5 @@ arch-packages/aur-build-worker
 
 config_server.json
 config_worker.json
-aur-build-worker.log
-aur-build-server.log
-
-.gitlab-ci-local-variables.yml
-.gitlab-ci-local
-/key.asc
+aur_build_worker.log
+aur_build_server.log
