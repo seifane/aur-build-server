@@ -1,42 +1,128 @@
-use std::fs::File;
-use std::io::{BufReader, Read};
-use serde::{Deserialize};
-use common::models::{PackageDefinition};
+use anyhow::Result;
+use std::path::PathBuf;
+
+use clap::builder::TypedValueParser;
+
+use clap::Parser;
+use log::LevelFilter;
+use serde::Deserialize;
+
+use common::models::PackageDefinition;
+
+macro_rules! merge_config_option {
+    ($a:expr, $b:expr, $f: ident) => {
+        {
+            match ($a.$f, $b.$f) {
+                (Some(v), _) => Some(v),
+                (None, Some(v)) => Some(v),
+                _ => None
+            }
+        }
+    };
+}
+
+#[derive(Deserialize, Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct SharedConfig {
+    /// Path of the server configuration file. Default: './config_server.json'
+    #[clap(short, long)]
+    #[serde(skip)]
+    pub config_path: Option<PathBuf>,
+
+    /// Log level. Default: 'info'
+    #[arg(
+        long,
+        value_parser = clap::builder::PossibleValuesParser::new(["off", "error", "warn", "info", "debug", "trace"])
+        .map(|s| s.parse::<log::LevelFilter>().unwrap()),
+    )]
+    pub log_level: Option<LevelFilter>,
+    /// Log file output for the server. Default: './aur-build-server.log'
+    #[clap(long, value_hint = clap::ValueHint::FilePath)]
+    pub log_path: Option<PathBuf>,
+
+    /// Sets the API Key that will be used by the workers and CLI to authenticate
+    #[clap(short = 'k', long)]
+    pub api_key: Option<String>,
+    /// Port to listen on. Default: '8888'
+    #[clap(short = 'p', long)]
+    pub port: Option<u16>,
+
+    /// Name of the Arch repo to create and serve
+    #[clap(short = 'r', long)]
+    pub repo_name: Option<String>,
+    /// ID of the GPG key used to sign the packages
+    #[clap(short = 's', long)]
+    pub sign_key: Option<String>,
+    /// The time in seconds between rebuild attempts
+    #[clap(short = 't', long)]
+    pub rebuild_time: Option<u64>,
+
+    #[clap(long, value_hint = clap::ValueHint::DirPath)]
+    /// Path to store built packages and serve them. Default: './server/serve'
+    pub serve_path: Option<PathBuf>,
+    /// Path to store built packages and serve them. Default: './server/build_logs'
+    #[clap(long, value_hint = clap::ValueHint::DirPath)]
+    pub build_logs_path: Option<PathBuf>,
+
+    #[clap(skip)]
+    pub webhooks: Option<Vec<String>>,
+    #[clap(skip)]
+    pub packages: Vec<PackageDefinition>,
+}
+
+impl SharedConfig {
+    pub async fn try_from_file(path: &PathBuf) -> Result<SharedConfig>
+    {
+        let file = tokio::fs::read_to_string(path).await?;
+        let config: SharedConfig = serde_json::from_str(file.as_str())?;
+        Ok(config)
+    }
+}
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct Config {
-    pub repo_name: String,
-    pub sign_key: Option<String>,
+    pub log_level: LevelFilter,
+    pub log_path: PathBuf,
 
     pub api_key: String,
+    pub port: u16,
+
+    pub repo_name: String,
+    pub sign_key: Option<String>,
     pub rebuild_time: Option<u64>,
+
+    pub serve_path: PathBuf,
+    pub build_logs_path: PathBuf,
+
+    pub webhooks: Vec<String>,
     pub packages: Vec<PackageDefinition>,
-
-    serve_path: Option<String>,
-
-    port: Option<u16>,
-
-    pub webhooks: Option<Vec<String>>,
 }
 
 impl Config {
-    pub fn from_file(path: String) -> Config {
-        let file = File::open(path).unwrap();
+    pub async fn new() -> Result<Config> {
+        let cli_config= SharedConfig::parse();
+        let file_config = SharedConfig::try_from_file(
+            &cli_config.config_path.clone().unwrap_or(PathBuf::from("./config_server.json"))
+        ).await?;
 
-        let mut buf_reader = BufReader::new(file);
-        let mut contents = String::new();
-        buf_reader.read_to_string(&mut contents).unwrap();
+        let config = Config {
+            log_level: cli_config.log_level.unwrap_or(LevelFilter::Info),
+            log_path: cli_config.log_path.unwrap_or(file_config.log_path.unwrap_or(PathBuf::from("./aur_build_server.log"))),
 
-        serde_json::from_str(contents.as_str()).unwrap()
-    }
+            api_key: cli_config.api_key.unwrap_or(file_config.api_key.unwrap()),
+            port: cli_config.port.unwrap_or(file_config.port.unwrap_or(8888)),
 
-    pub fn get_port(&self) -> u16
-    {
-        self.port.unwrap_or(8888)
-    }
-    
-    pub fn get_serve_path(&self) -> String
-    {
-        self.serve_path.clone().unwrap_or("serve/".to_string())
+            repo_name: cli_config.repo_name.unwrap_or(file_config.repo_name.unwrap_or(String::from("aurbuild"))),
+            sign_key: merge_config_option!(cli_config, file_config, sign_key),
+            rebuild_time: merge_config_option!(cli_config, file_config, rebuild_time),
+
+            serve_path: cli_config.serve_path.unwrap_or(file_config.serve_path.unwrap_or(PathBuf::from("./server/serve"))),
+            build_logs_path: cli_config.build_logs_path.unwrap_or(file_config.build_logs_path.unwrap_or(PathBuf::from("./server/build_logs"))),
+
+            webhooks: cli_config.webhooks.unwrap_or(file_config.webhooks.unwrap_or_default()),
+            packages: file_config.packages,
+        };
+
+        Ok(config)
     }
 }

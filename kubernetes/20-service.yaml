@@ -1,0 +1,13 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: aurbuild-server-app
+  namespace: aurbuild
+spec:
+  type: NodePort
+  selector:
+    app: aurbuild-server-app
+  ports:
+    - protocol: TCP
+      port: 8888
+      targetPort: 8888

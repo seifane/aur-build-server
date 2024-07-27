@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fs;
 use std::path::{PathBuf};
-use homedir::get_my_home;
+use homedir::my_home;
 use serde::{Deserialize, Serialize};
 use simple_error::SimpleError;
 
@@ -29,7 +29,7 @@ impl ProfileConfig {
 
     pub fn get_default_directory() -> PathBuf
     {
-        get_my_home()
+        my_home()
             .expect("Unable to get home directory")
             .expect("Unable to get home directory")
             .join(".config")

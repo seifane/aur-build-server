@@ -18,15 +18,16 @@ use crate::orchestrator::Orchestrator;
 
 
 async fn authorize((token, headers): (String, HeaderMap<HeaderValue>)) -> Result<(), Rejection> {
-    match headers.get("authorization") {
+    return match headers.get("authorization") {
         Some(authorization) => {
             let auth = from_utf8(authorization.as_bytes()).unwrap();
             if auth == token.as_str() {
-                return Ok(());
+                Ok(())
+            } else {
+                Err(reject::reject())
             }
-            return Err(reject::reject());
         }
-        None => return Err(reject::reject()),
+        None => Err(reject::reject()),
     }
 }
 
@@ -38,12 +39,15 @@ pub fn with_auth(token: String) -> impl Filter<Extract=((), ), Error=Rejection> 
 
 pub async fn start_http(
     orchestrator: Arc<RwLock<Orchestrator>>,
-    config: Config
+    config: Arc<RwLock<Config>>
 ) {
     let next_id: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(1));
 
     let with_orchestrator = warp::any().map(move || orchestrator.clone());
     let with_next_id = warp::any().map(move || next_id.clone());
+    let auth_filter = with_auth(config.read().await.api_key.clone());
+    let config_clone = config.clone();
+    let with_config = warp::any().map(move || config_clone.clone());
 
     let ws = warp::path("ws")
         .and(warp::ws())
@@ -57,14 +61,14 @@ pub async fn start_http(
     let api_routes = warp::path("api");
 
     let get_packages = api_routes.and(warp::path("packages"))
-        .and(with_auth(config.api_key.clone()))
+        .and(auth_filter.clone())
         .untuple_one()
         .and(warp::get())
         .and(with_orchestrator.clone())
         .and_then(move |o| get_packages(o));
 
     let get_workers = api_routes.and(warp::path("workers"))
-        .and(with_auth(config.api_key.clone()))
+        .and(auth_filter.clone())
         .untuple_one()
         .and(warp::get())
         .and(with_orchestrator.clone())
@@ -72,21 +76,22 @@ pub async fn start_http(
 
     let remove_worker = api_routes.and(warp::path("workers"))
         .and(warp::delete())
-        .and(with_auth(config.api_key.clone()))
+        .and(auth_filter.clone())
         .untuple_one()
         .and(with_orchestrator.clone())
         .and(warp::path::param())
         .and_then(move |o, id| remove_worker(o, id));
 
     let get_logs = api_routes.and(warp::path("logs"))
-        .and(with_auth(config.api_key.clone()))
-        .untuple_one()
-        .and(warp::path::param())
         .and(warp::get())
-        .and_then(move |package: String| get_logs(package));
+        .and(auth_filter.clone())
+        .untuple_one()
+        .and(with_config.clone())
+        .and(warp::path::param())
+        .and_then(move |config: Arc<RwLock<Config>>, package: String| get_logs(config, package));
 
     let post_rebuild_packages = api_routes.and(warp::path("rebuild"))
-        .and(with_auth(config.api_key.clone()))
+        .and(auth_filter.clone())
         .untuple_one()
         .and(warp::post())
         .and(with_orchestrator.clone())
@@ -96,7 +101,7 @@ pub async fn start_http(
 
     let trigger_webhook = api_routes
         .and(warp::path("webhook")).and(warp::path("trigger")).and(warp::path("package_updated"))
-        .and(with_auth(config.api_key.clone()))
+        .and(auth_filter.clone())
         .untuple_one()
         .and(warp::post())
         .and(with_orchestrator.clone())
@@ -105,7 +110,7 @@ pub async fn start_http(
 
     let upload_package = api_routes.and(warp::path("worker"))
         .and(warp::path("upload"))
-        .and(with_auth(config.api_key.clone()))
+        .and(auth_filter.clone())
         .untuple_one()
         .and(warp::post())
         .and(warp::multipart::form().max_length(1024 * 1000 * 1000 * 1000))
@@ -120,7 +125,7 @@ pub async fn start_http(
 
     let files = warp::path("repo")
         .and(warp::get())
-        .and(warp::fs::dir(config.get_serve_path()));
+        .and(warp::fs::dir(config.read().await.serve_path.clone()));
 
     let routes = warp::any().and(
         files_index.or(files)
@@ -134,5 +139,5 @@ pub async fn start_http(
             .or(upload_package)
     );
 
-    warp::serve(routes).run(([0, 0, 0, 0], config.get_port())).await;
+    warp::serve(routes).run(([0, 0, 0, 0], config.read().await.port)).await;
 }

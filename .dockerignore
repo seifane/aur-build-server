@@ -1,5 +1,5 @@
 target/
-mount/
-config/
+server/
+worker/
 config_server.json
 config_worker.json

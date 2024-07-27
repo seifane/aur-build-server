@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -12,7 +11,7 @@ use crate::worker::worker::Worker;
 pub enum WorkerDispatchResult {
     NoneAvailable,
     Ok,
-    Err(Box<dyn Error>)
+    Err(anyhow::Error)
 }
 
 pub struct WorkerManager {

@@ -1,6 +1,6 @@
 [package]
 name = "aur-build-server"
-version = "0.11.0"
+version = "0.20.0"
 edition = "2021"
 
 [[bin]]
@@ -29,12 +29,12 @@ tokio-stream = "0.1.15"
 futures = "0.3.30"
 futures-util = { version = "0.3.30", default-features = false, features = ["std", "sink"] }
 
-simple-error = "0.3.1"
-
-log = "0.4.21"
+log = { version = "0.4.21", features = ["serde"] }
 simplelog = "0.12.2"
-bytes = "1.6.0"
-handlebars = "5.1.2"
+
+bytes = "1.6.1"
+handlebars = "6.0.0"
+anyhow = "1.0.86"
 
 [dev-dependencies]
 serial_test = "3.1.1"

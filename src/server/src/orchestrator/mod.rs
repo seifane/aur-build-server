@@ -20,9 +20,7 @@ pub struct Orchestrator {
 }
 
 impl Orchestrator {
-    pub async fn new(config: &Config) -> Orchestrator {
-        let config = Arc::new(RwLock::new(config.clone()));
-
+    pub async fn new(config: Arc<RwLock<Config>>) -> Orchestrator {
         Orchestrator {
             worker_manager: WorkerManager::new(config.clone()),
             webhook_manager: WebhookManager::from_config(config.clone()),

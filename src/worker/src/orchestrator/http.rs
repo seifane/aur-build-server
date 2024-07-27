@@ -1,72 +1,89 @@
-use std::error::Error;
-use std::path::Path;
+use anyhow::{Context, Result};
 use log::{error, info};
-use reqwest::{multipart};
-use reqwest::multipart::Part;
+use reqwest::multipart::{Form, Part};
 use tokio::fs::{read_dir};
-use crate::errors::PackageBuildError;
-use crate::models::PackageBuild;
-use crate::utils::add_package_files_to_form_data;
+use crate::models::config::Config;
+use crate::models::package_build_result::PackageBuildResult;
+use crate::utils::get_package_dir_entries;
 
 pub struct HttpClient {
-    base_url: String,
-    api_key: String
+    config: Config,
 }
 
 impl HttpClient {
-    pub fn new(base_url: String, api_key: String) -> HttpClient
+    pub fn from_config(config: &Config) -> HttpClient
     {
         HttpClient {
-            base_url,
-            api_key,
+            config: config.clone(),
         }
     }
 
-    // TODO: Stream the payload instead of loading it
-    pub async fn upload_packages(
-        &self,
-        package_name: &String,
-        build_result: Result<PackageBuild, PackageBuildError>
-    ) -> Result<(), Box<dyn Error + Sync + Send>>
+    async fn add_logs_to_form(&self, mut form: Form) -> Result<Form> {
+        let mut dir = read_dir(&self.config.build_logs_path).await?;
+        while let Some(entry) = dir.next_entry().await? {
+            let content = tokio::fs::read(entry.path()).await?;
+            let file_name = entry.file_name().into_string().unwrap();
+
+            info!("Uploading log file {}", file_name);
+            form = form.part("log_files[]", Part::bytes(content).file_name(file_name));
+        }
+
+        Ok(form)
+    }
+
+    async fn add_package_files_to_form_data(&self, mut form: Form) -> Result<Form>
     {
-        let mut form = multipart::Form::new()
+        let packages = get_package_dir_entries(&self.config.data_path.join("_built")).await?;
+
+        for entry in packages.iter() {
+            let content = tokio::fs::read(entry.path()).await?;
+            let file_name = entry.file_name().into_string().unwrap();
+
+            info!("Uploading package file {}", file_name);
+            // TODO: Stream the payload instead of loading it
+            form = form.part("files[]", Part::bytes(content).file_name(file_name));
+        }
+
+        Ok(form)
+    }
+
+    async fn build_form(&self, package_name: &String, build_result: Result<PackageBuildResult>) -> Result<Form> {
+        let mut form = Form::new()
             .text("package_name", package_name.clone());
 
         form = match build_result {
             Ok(result) => {
                 if result.built {
-                    let mut packages = result.additional_packages.clone();
-                    packages.push(package_name.clone());
-                    for package in packages.iter() {
-                        form = add_package_files_to_form_data(package, form).await?;
-                    }
+                    form = self.add_package_files_to_form_data(form).await.with_context(|| "Failed to add packages files to form")?;
                 }
                 form.text("version", result.version)
             }
             Err(e) => {
-                form.text("error", e.message)
+                form.text("error", format!("{:#}", e))
                     .text("version", "".to_string())
             }
         };
 
-        let logs_path = Path::new("worker_logs/");
-        let mut dir = read_dir(logs_path).await?;
-        while let Some(file) = dir.next_entry().await? {
-            let content = tokio::fs::read(file.path()).await?;
-            form = form.part(
-                "log_files[]",
-                Part::bytes(content)
-                    .file_name(file.file_name().into_string().unwrap())
-            );
-            info!("Uploading log file {}", file.file_name().to_str().unwrap_or(""))
-        }
+        Ok(
+            self.add_logs_to_form(form).await.with_context(|| "Failed to add logs to form")?
+        )
+    }
 
-        let client = reqwest::Client::new();
-        let res = client
-            .post(format!("{}/api/worker/upload", self.base_url))
-            .header("Authorization", self.api_key.clone())
+
+    pub async fn upload_packages(
+        &self,
+        package_name: &String,
+        build_result: Result<PackageBuildResult>
+    ) -> Result<()>
+    {
+        let form = self.build_form(package_name, build_result).await?;
+
+        let res = reqwest::Client::new()
+            .post(format!("{}/api/worker/upload", self.config.base_url))
+            .header("Authorization", &self.config.api_key)
             .multipart(form)
             .send().await;
+
         match res {
             Ok(response) => {info!("Upload response {}", response.status())}
             Err(err) => {error!("Error uploading {:?}", err)}

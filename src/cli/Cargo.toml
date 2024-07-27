@@ -1,6 +1,6 @@
 [package]
 name = "aur-build-cli"
-version = "0.11.0"
+version = "0.20.0"
 edition = "2021"
 
 [[bin]]
@@ -19,8 +19,8 @@ clap = { version = "4.5.8", features = ["derive"] }
 
 colored = "2.1.0"
 dialoguer = "0.11.0"
-cli-table = "=0.4.7"
+cli-table = "=0.4.9"
 
 simple-error = "0.3.0"
-homedir = "0.2.1"
+homedir = "0.3.3"
 chrono = { version = "0.4.38", features = ["serde"] }

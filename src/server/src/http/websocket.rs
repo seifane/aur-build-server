@@ -76,6 +76,9 @@ async fn handle_websocket_message(message: WebsocketMessage, orchestrator: Arc<R
             if !is_authed {
                 warn!("Failed to auth worker id {}", id);
                 orchestrator.write().await.remove_worker(id);
+            } else {
+                info!("Requesting worker {} status", id);
+                orchestrator.write().await.worker_manager.workers.get(&id).unwrap().sender.send(WebsocketMessage::WorkerStatusRequest {}).unwrap();
             }
         },
         _ => {}

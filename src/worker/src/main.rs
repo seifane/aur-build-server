@@ -1,7 +1,6 @@
 extern crate core;
 
 mod commands;
-mod errors;
 mod models;
 mod orchestrator;
 mod utils;
@@ -9,44 +8,51 @@ mod worker;
 mod logs;
 mod builder;
 
-use std::error::Error;
 use std::fs::File;
 use std::sync::Arc;
-use clap::Parser;
-use log::{info};
+use std::time::Duration;
+use log::{debug, error, info};
 use simplelog::{ColorChoice, CombinedLogger, Config as SimpleLogConfig, TerminalMode, TermLogger, WriteLogger};
 use tokio::sync::RwLock;
-use crate::models::{Args, Config};
-use crate::orchestrator::websocket::{connect, websocket_recv_task};
-use crate::worker::Worker;
+use tokio::time::sleep;
+use crate::builder::bubblewrap::Bubblewrap;
+use crate::models::config::Config;
+use crate::orchestrator::websocket::WebsocketClient;
+use crate::worker::State;
 
-pub async fn start_worker(config: &Config) -> Result<(), Box<dyn Error>>
+pub async fn start(config: &Config)
 {
-    let websocket = connect(format!("{}/ws", config.base_url_ws), &config.api_key).await;
-    let worker = Arc::new(RwLock::new(
-        Worker::new(websocket.1, &config.base_url, &config.api_key
-        )));
+    let state = Arc::new(RwLock::new(State::from_config(config)));
 
-    websocket_recv_task(websocket.2, worker.clone()).await;
-    Ok(())
+    loop {
+        let mut websocket_client = WebsocketClient::new(config, state.clone());
+        let res = websocket_client.listen().await;
+
+        error!("Lost connection to server: {:?}", res);
+        error!("Retrying connection in 5 seconds ...");
+        sleep(Duration::from_secs(5)).await;
+    }
 }
 
 
 #[tokio::main]
 async fn main() {
-    let args: Args = Args::parse();
+    let config = Config::new().await.unwrap();
 
     CombinedLogger::init(
         vec![
-            TermLogger::new(args.log_level, SimpleLogConfig::default(), TerminalMode::Mixed, ColorChoice::Auto),
-            WriteLogger::new(args.log_level, SimpleLogConfig::default(), File::create(args.log_path).unwrap()),
+            TermLogger::new(config.log_level, SimpleLogConfig::default(), TerminalMode::Mixed, ColorChoice::Auto),
+            WriteLogger::new(config.log_level, SimpleLogConfig::default(), File::create(&config.log_path).unwrap()),
         ]
     ).unwrap();
 
+    debug!("Loaded config {:#?}", config);
+
     info!("Starting aur-build-worker with version {}", env!("CARGO_PKG_VERSION"));
 
-    let config = Config::try_from_file(args.config_path).await.expect("Error while trying to open config file");
+    let bubblewrap = Bubblewrap::from_config(&config);
+    bubblewrap.create(config.force_base_sandbox_create).await.unwrap();
 
-    start_worker(&config).await.expect("Worker general error");
+    start(&config).await;
     info!("Worker terminated");
 }

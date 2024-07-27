@@ -1,4 +1,4 @@
-use std::error::Error;
+use anyhow::Result;
 use log::info;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
@@ -39,7 +39,7 @@ impl Worker {
 
 
 
-    pub fn dispatch_package(&mut self, package: &mut ServerPackage) -> Result<(), Box<dyn Error>>
+    pub fn dispatch_package(&mut self, package: &mut ServerPackage) -> Result<()>
     {
         self.sender.send(
             WebsocketMessage::JobSubmit {
