@@ -40,8 +40,8 @@ data:
     }
   config_worker.json: |
     {
-      "base_url": "http://archrepo-server-app:8888",
-      "base_url_ws": "ws://archrepo-server-app:8888",
+      "base_url": "http://aurbuild-server-app:8888",
+      "base_url_ws": "ws://aurbuild-server-app:8888",
       "api_key": "changeme",
     
       "data_path": "./worker/data",
