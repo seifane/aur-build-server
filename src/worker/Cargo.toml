@@ -1,6 +1,6 @@
 [package]
 name = "aur-build-worker"
-version = "0.20.0"
+version = "0.20.1"
 edition = "2021"
 
 [[bin]]
@@ -11,23 +11,23 @@ path = "src/main.rs"
 [dependencies]
 common = { path = "../common" }
 
-anyhow = "1.0.86"
-clap = { version = "4.5.9", features = ["derive"] }
+anyhow = "1.0.95"
+clap = { version = "4.5.23", features = ["derive"] }
 
 warp = "0.3.7"
-reqwest = { version = "0.12.5", features = ["multipart", "json", "stream"] }
+reqwest = { version = "0.12.11", features = ["multipart", "json", "stream"] }
 
-chrono = { version = "0.4.38", features = ["serde"] }
+chrono = { version = "0.4.39", features = ["serde"] }
 
-serde = { version = "1.0.204", features = ["derive"] }
-serde_json = "1.0.120"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.134"
 
-tokio = { version = "1.38.1", features = ["full"] }
-tokio-stream = "0.1.15"
-tokio-tungstenite = "0.23.1"
+tokio = { version = "1.42.0", features = ["full"] }
+tokio-stream = "0.1.17"
+tokio-tungstenite = "0.26.1"
 
-futures = "0.3.30"
-futures-util = { version = "0.3.30", default-features = false, features = ["std", "sink"] }
+futures = "0.3.31"
+futures-util = { version = "0.3.31", default-features = false, features = ["std", "sink"] }
 
 git2 = "0.19.0"
 
@@ -44,5 +44,5 @@ base16ct = { version = "0.2.0", features = ["alloc"] }
 petgraph = "0.6.5"
 
 [dev-dependencies]
-serial_test = "3.1.1"
+serial_test = "3.2.0"
 

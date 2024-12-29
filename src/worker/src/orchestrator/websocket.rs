@@ -10,7 +10,7 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
-use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::{Message, Utf8Bytes};
 use common::messages::WebsocketMessage;
 use common::models::PackageJob;
 use crate::builder::Builder;
@@ -23,7 +23,7 @@ pub type WebsocketSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, M
 async fn websocket_send_task(mut tx_ws: WebsocketSink, mut rx: UnboundedReceiverStream<WebsocketMessage>)
 {
     while let Some(message) = rx.next().await {
-        let res = tx_ws.send(Message::Text(serde_json::to_string(&message).unwrap())).await;
+        let res = tx_ws.send(Message::Text(Utf8Bytes::from(serde_json::to_string(&message).unwrap()))).await;
         if let Err(res) = res {
             error!("Error while sending message {}", res);
         }

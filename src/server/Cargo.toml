@@ -1,6 +1,6 @@
 [package]
 name = "aur-build-server"
-version = "0.20.0"
+version = "0.20.1"
 edition = "2021"
 
 [[bin]]
@@ -17,23 +17,23 @@ reqwest = { version = "0.12.4", features = ["blocking", "multipart", "json", "st
 
 rand = "0.8.5"
 
-chrono = { version = "0.4.38", features = ["serde"] }
-regex = "1.10.5"
+chrono = { version = "0.4.39", features = ["serde"] }
+regex = "1.11.1"
 
-serde = { version = "1.0.203", features = ["derive"] }
-serde_json = "1.0.117"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.134"
 
-tokio = { version = "1.37.0", features = ["full"] }
-tokio-stream = "0.1.15"
+tokio = { version = "1.42.0", features = ["full"] }
+tokio-stream = "0.1.17"
 
-futures = "0.3.30"
-futures-util = { version = "0.3.30", default-features = false, features = ["std", "sink"] }
+futures = "0.3.31"
+futures-util = { version = "0.3.31", default-features = false, features = ["std", "sink"] }
 
-log = { version = "0.4.21", features = ["serde"] }
+log = { version = "0.4.22", features = ["serde"] }
 simplelog = "0.12.2"
 
 bytes = "1.6.1"
-handlebars = "6.0.0"
+handlebars = "6.2.0"
 anyhow = "1.0.86"
 
 [dev-dependencies]
