@@ -13,6 +13,7 @@ RUN mkdir /app
 WORKDIR /app
 
 RUN useradd -m -s /bin/bash app
+RUN echo -e "app  ALL=(ALL) NOPASSWD:/usr/sbin/pacman\napp  ALL=(ALL) NOPASSWD:/usr/sbin/pacman-key" | sudo tee /etc/sudoers.d/app
 
 FROM base AS server
 
