@@ -32,3 +32,5 @@ services:
     volumes:
       - "./config_worker.json:/app/config_worker.json"
       - "./config:/app/config"
+      - "./config/mirrorlist:/etc/pacman.d/mirrorlist"
+      - "./config/pacman.conf:/etc/pacman.conf"

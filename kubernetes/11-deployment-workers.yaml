@@ -32,6 +32,12 @@ spec:
           - mountPath: "/app/config/mirrorlist"
             name: config
             subPath: mirrorlist
+          - mountPath: "/etc/pacman.d/mirrorlist"
+            name: config
+            subPath: mirrorlist
+          - mountPath: "/etc/pacman.conf"
+            name: config
+            subPath: pacman.conf
       volumes:
         - name: config
           configMap:
