@@ -81,7 +81,7 @@ impl Bubblewrap {
             "-Syu", "--noconfirm", "--root", self.sandbox_path.join("base").to_str().unwrap(),
             "--dbpath", self.sandbox_path.join("base/var/lib/pacman").to_str().unwrap(),
             "--config", self.sandbox_path.join("base/etc/pacman.conf").to_str().unwrap(),
-            "base", "fakeroot", "base-devel"
+            "base", "fakeroot", "base-devel", "ca-certificates", "ca-certificates-utils"
         ]).await?;
         info!("Base package installed finished with output code {:?}", out.status.code());
         debug!("stdout:\n{}stderr:\n{}", String::from_utf8(out.stdout.as_slice().to_vec()).unwrap(), String::from_utf8(out.stderr.as_slice().to_vec()).unwrap());
