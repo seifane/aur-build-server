@@ -36,7 +36,8 @@ impl Api {
         let packages = if packages.is_empty() {
             None
         } else {
-            Some(packages)
+            None
+            // Some(packages)
         };
 
         let payload = PackageRebuildPayload {

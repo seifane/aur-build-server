@@ -18,6 +18,7 @@ pub fn get_color_from_worker_status(status: &WorkerStatus) -> Option<Color>
 pub fn get_color_from_package_status(status: &PackageStatus) -> Option<Color>
 {
     match status {
+        PackageStatus::UNKNOWN => Some(Color::White),
         PackageStatus::PENDING => Some(Color::Magenta),
         PackageStatus::BUILDING => Some(Color::Yellow),
         PackageStatus::BUILT => Some(Color::Green),

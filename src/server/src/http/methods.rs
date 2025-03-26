@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use handlebars::Handlebars;
+use log::{error, info};
 use serde::Serialize;
 use tokio::fs::read_dir;
 use tokio::sync::RwLock;
@@ -22,7 +23,15 @@ use crate::models::config::Config;
 use crate::orchestrator::Orchestrator;
 
 pub async fn get_packages(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl Reply, Infallible> {
-    Ok::<_, Infallible>(reply::json(&orchestrator.read().await.repository.get_packages().iter().map(|i| i.1.as_http_response()).collect::<Vec<_>>()))
+    Ok::<_, Infallible>(
+        reply::json(
+            &orchestrator
+                .write().await
+                .get_package_store()
+                .get_packages().await.unwrap()
+                .into_iter()
+                .map(|i| i.into_package_response())
+                .collect::<Vec<_>>()))
 }
 
 pub async fn get_workers(orchestrator: Arc<RwLock<Orchestrator>>) -> Result<impl Reply, Infallible> {
@@ -52,31 +61,37 @@ pub async fn rebuild_packages(orchestrator: Arc<RwLock<Orchestrator>>, payload: 
 {
     let force = payload.force.unwrap_or(false);
 
-    if let Some(packages) = payload.packages {
-        for package in packages.iter() {
-            orchestrator.write().await.repository.queue_package_for_rebuild(package, force);
-        }
+    let packages = if let Some(packages) = payload.packages {
+        packages
     } else {
-        orchestrator.write().await.repository.queue_all_packages_for_rebuild(force);
-    }
+        orchestrator.write().await.get_package_store().get_packages().await.unwrap()
+            .iter()
+            .map(|i| i.id)
+            .collect()
+    };
+    orchestrator.write().await.get_package_store().set_packages_pending(packages, force).await.unwrap();
 
     Ok(reply::json(&SuccessResponse::from(true)))
 }
 
 pub async fn webhook_trigger_package(orchestrator: Arc<RwLock<Orchestrator>>, package_name: String) -> Result<impl Reply, Infallible>
 {
-    let orchestrator_lock = orchestrator.write().await;
-    let package = orchestrator_lock.repository.get_package_by_name(&package_name);
+    let mut orchestrator_lock = orchestrator.write().await;
+    let package = orchestrator_lock.get_package_store().get_package_by_name(&package_name).await;
 
-    match package {
-        None => {
-            Ok(reply::json(&SuccessResponse::from(false)))
-        }
-        Some(package) => {
-            orchestrator_lock.webhook_manager.trigger_webhook_package_updated(package.as_http_response()).await;
-            Ok(reply::json(&SuccessResponse::from(true)))
-        }
+    if let Ok(maybe_package) = package {
+        return match maybe_package {
+            None => {
+                Ok(reply::json(&SuccessResponse::from(false)))
+            }
+            Some(package) => {
+                orchestrator_lock.webhook_manager.trigger_webhook_package_updated(package.into_package_response()).await;
+                Ok(reply::json(&SuccessResponse::from(true)))
+            }
+        };
     }
+
+    Ok(reply::json(&SuccessResponse::from(false)))
 }
 
 
@@ -120,7 +135,7 @@ pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormD
         }
     };
 
-    orchestrator.write().await.repository.handle_package_build_output(
+    let res = orchestrator.write().await.handle_package_build_output(
         package_name,
         PackageBuildData {
             files: fields.get("files[]"),
@@ -130,6 +145,11 @@ pub async fn upload_package(orchestrator: Arc<RwLock<Orchestrator>>, form: FormD
             version: built_version,
         }
     ).await;
+
+    match res {
+        Ok(_) => info!("Successfully handled build output for package {}", package_name),
+        Err(e) => error!("Failed to handle build output for package {}: '{}'", package_name, e),
+    }
     Ok("")
 }
 

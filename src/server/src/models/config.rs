@@ -63,6 +63,9 @@ struct SharedConfig {
     /// Path to store built packages and serve them. Default: './server/build_logs'
     #[clap(long, value_hint = clap::ValueHint::DirPath)]
     pub build_logs_path: Option<PathBuf>,
+    /// Path to store database. Default: './server/aur-build.sqlite'
+    #[clap(long, value_hint = clap::ValueHint::DirPath)]
+    pub database_path: Option<PathBuf>,
 
     #[clap(skip)]
     pub webhooks: Option<Vec<String>>,
@@ -93,6 +96,7 @@ pub struct Config {
 
     pub serve_path: PathBuf,
     pub build_logs_path: PathBuf,
+    pub database_path: PathBuf,
 
     pub webhooks: Vec<String>,
     pub packages: Vec<PackageDefinition>,
@@ -118,6 +122,7 @@ impl Config {
 
             serve_path: cli_config.serve_path.unwrap_or(file_config.serve_path.unwrap_or(PathBuf::from("./server/serve"))),
             build_logs_path: cli_config.build_logs_path.unwrap_or(file_config.build_logs_path.unwrap_or(PathBuf::from("./server/build_logs"))),
+            database_path: cli_config.database_path.unwrap_or(file_config.database_path.unwrap_or(PathBuf::from("./server/aur-build.sqlite"))),
 
             webhooks: cli_config.webhooks.unwrap_or(file_config.webhooks.unwrap_or_default()),
             packages: file_config.packages,

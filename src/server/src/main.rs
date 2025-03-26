@@ -4,7 +4,9 @@ mod orchestrator;
 mod webhooks;
 mod repository;
 mod worker;
+mod persistence;
 
+use anyhow::Result;
 use std::fs::File;
 use std::sync::Arc;
 use simplelog::{ColorChoice, CombinedLogger, Config as SimpleLogConfig, TerminalMode, TermLogger, WriteLogger};
@@ -14,13 +16,12 @@ use crate::http::start_http;
 use crate::models::config::Config;
 use crate::orchestrator::Orchestrator;
 
-pub async fn start(config: Config) {
+pub async fn start(config: Config) -> Result<()> {
     let config = Arc::new(RwLock::new(config));
-    let orchestrator = Orchestrator::new(config.clone()).await;
+    let orchestrator = Orchestrator::new(config.clone()).await?;
     let orchestrator = Arc::new(RwLock::new(orchestrator));
 
     info!("Starting orchestrator");
-    orchestrator.write().await.restore_state().await;
     let orchestrator_task = tokio::task::spawn(Orchestrator::dispatch_loop(orchestrator.clone()));
 
     info!("Starting http");
@@ -29,6 +30,7 @@ pub async fn start(config: Config) {
 
     orchestrator_task.abort();
     info!("Stopped orchestrator");
+    Ok(())
 }
 
 #[tokio::main]
@@ -46,5 +48,5 @@ async fn main(){
 
     info!("Starting aur-build-server with version {}", env!("CARGO_PKG_VERSION"));
 
-    start(config).await;
+    start(config).await.unwrap();
 }

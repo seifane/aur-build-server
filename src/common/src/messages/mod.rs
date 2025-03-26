@@ -14,7 +14,7 @@ pub enum WebsocketMessage {
     WorkerStatusRequest {},
     WorkerStatusUpdate {
         status: WorkerStatus,
-        package: Option<String>
+        job: Option<PackageJob>
     },
     UploadArtifactRequest {},
     UploadArtifactResponse {

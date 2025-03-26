@@ -14,8 +14,7 @@ services:
       - "8888:8888"
     volumes:
       - "./config_server.json:/app/config_server.json"
-      - "./server/logs:/app/server/logs"
-      - "./server/serve:/app/server/serve"
+      - "./server:/app/server"
       - "./key.asc:/app/key.asc" # Comment this line if you are not signing your packages
 
   worker:

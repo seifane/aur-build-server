@@ -35,6 +35,9 @@ simplelog = "0.12.2"
 bytes = "1.6.1"
 handlebars = "6.2.0"
 anyhow = "1.0.86"
+diesel = { version = "2.2.8", features = ["sqlite", "returning_clauses_for_sqlite_3_35", "serde_json"] }
+diesel_migrations = { version = "2.2.0", features = ["sqlite"] }
+diesel-async = { version = "0.5.2", features = ["sqlite"] }
 
 [dev-dependencies]
 serial_test = "3.1.1"

@@ -33,7 +33,7 @@ async fn websocket_recv_loop(mut ws_rx: SplitStream<WebSocket>, orchestrator: Ar
                 parse_websocket_message(msg, orchestrator.clone(), id).await,
             Err(e) => {
                 error!("Websocket error {:?}", e);
-                orchestrator.write().await.remove_worker(id);
+                orchestrator.write().await.remove_worker(id).await;
                 return;
             }
         };
@@ -58,7 +58,7 @@ async fn websocket_send_loop(mut rx: UnboundedReceiverStream<WebsocketMessage>, 
 async fn parse_websocket_message(message: Message, orchestrator: Arc<RwLock<Orchestrator>>, id: usize) {
     if message.is_close() {
         info!("Worker closed connection");
-        orchestrator.write().await.remove_worker(id);
+        orchestrator.write().await.remove_worker(id).await;
     } else if message.is_text() {
         let body = message.to_str().unwrap();
         let parsed: WebsocketMessage = serde_json::from_str(body).unwrap();
@@ -68,14 +68,14 @@ async fn parse_websocket_message(message: Message, orchestrator: Arc<RwLock<Orch
 
 async fn handle_websocket_message(message: WebsocketMessage, orchestrator: Arc<RwLock<Orchestrator>>, id: usize) {
     match message {
-        WebsocketMessage::WorkerStatusUpdate { status, package } => {
+        WebsocketMessage::WorkerStatusUpdate { status, job: package } => {
             orchestrator.write().await.worker_manager.set_worker_status(id, status, package);
         },
         WebsocketMessage::Authenticate {api_key} => {
             let is_authed = orchestrator.write().await.worker_manager.try_authenticate_worker(&id, api_key).await;
             if !is_authed {
                 warn!("Failed to auth worker id {}", id);
-                orchestrator.write().await.remove_worker(id);
+                orchestrator.write().await.remove_worker(id).await;
             } else {
                 info!("Requesting worker {} status", id);
                 orchestrator.write().await.worker_manager.workers.get(&id).unwrap().sender.send(WebsocketMessage::WorkerStatusRequest {}).unwrap();

@@ -44,15 +44,9 @@ impl State {
     pub fn push_state(&self) -> Result<()>
     {
         if let Some(sender) = self.sender.as_ref() {
-            let mut package = None;
-
-            if let Some(job) = self.current_job.as_ref() {
-                package = Some(job.definition.name.clone());
-            }
-
             sender.send(WebsocketMessage::WorkerStatusUpdate {
                 status: self.status.clone(),
-                package
+                job: self.current_job.clone(),
             }).with_context(|| "Failed to send message via sender".to_string())?;
         }
         Ok(())

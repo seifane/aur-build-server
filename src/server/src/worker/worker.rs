@@ -3,9 +3,8 @@ use log::info;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
 use common::http::responses::WorkerResponse;
-use common::models::{PackageStatus, WorkerStatus};
+use common::models::{PackageJob, WorkerStatus};
 use common::messages::{WebsocketMessage};
-use crate::models::server_package::{ServerPackage};
 
 pub struct Worker {
     pub receiver_task: JoinHandle<()>,
@@ -14,7 +13,7 @@ pub struct Worker {
 
     id: usize,
     status: WorkerStatus,
-    current_job: Option<String>,
+    current_job: Option<PackageJob>,
     is_authenticated: bool
 }
 
@@ -37,29 +36,26 @@ impl Worker {
         }
     }
 
-
-
-    pub fn dispatch_package(&mut self, package: &mut ServerPackage) -> Result<()>
+    pub fn dispatch_package(&mut self, package_job: PackageJob) -> Result<()>
     {
         self.sender.send(
             WebsocketMessage::JobSubmit {
-                package: package.get_package_job(),
+                package: package_job.clone(),
             }
         )?;
 
         self.status = WorkerStatus::DISPATCHED;
-        package.set_status(PackageStatus::BUILDING);
-        self.current_job = Some(package.get_package_name().clone());
+        self.current_job = Some(package_job);
 
         Ok(())
     }
 
-    pub fn get_current_job(&self) -> &Option<String>
+    pub fn get_current_job(&self) -> &Option<PackageJob>
     {
         &self.current_job
     }
 
-    pub fn set_current_job(&mut self, job: Option<String>)
+    pub fn set_current_job(&mut self, job: Option<PackageJob>)
     {
         self.current_job = job;
     }
@@ -100,7 +96,7 @@ impl Worker {
         WorkerResponse {
             id: self.id,
             status: self.status,
-            current_job: self.current_job.clone(),
+            current_job: self.current_job.as_ref().map(|i| i.definition.name.clone()),
             is_authenticated: self.is_authenticated,
         }
     }

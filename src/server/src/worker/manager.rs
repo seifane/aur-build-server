@@ -2,10 +2,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use common::models::WorkerStatus;
+use common::models::{PackageJob, WorkerStatus};
 use crate::models::config::Config;
 
-use crate::models::server_package::ServerPackage;
 use crate::worker::worker::Worker;
 
 pub enum WorkerDispatchResult {
@@ -49,7 +48,7 @@ impl WorkerManager {
         return None;
     }
 
-    pub fn set_worker_status(&mut self, worker_id: usize, status: WorkerStatus, current_job: Option<String>)
+    pub fn set_worker_status(&mut self, worker_id: usize, status: WorkerStatus, current_job: Option<PackageJob>)
     {
         if let Some(worker) = self.workers.get_mut(&worker_id) {
             worker.set_status(status);
@@ -66,11 +65,11 @@ impl WorkerManager {
         self.workers.remove(&worker_id)
     }
 
-    pub fn dispatch(&mut self, package: &mut ServerPackage) -> WorkerDispatchResult {
+    pub fn dispatch(&mut self, package_job: PackageJob) -> WorkerDispatchResult {
         match self.get_next_free_worker_id() {
             None => WorkerDispatchResult::NoneAvailable,
             Some(id) => {
-                match self.workers.get_mut(&id).unwrap().dispatch_package(package) {
+                match self.workers.get_mut(&id).unwrap().dispatch_package(package_job) {
                     Ok(_) => WorkerDispatchResult::Ok,
                     Err(e) => WorkerDispatchResult::Err(e)
                 }
