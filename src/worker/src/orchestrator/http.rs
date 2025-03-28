@@ -79,7 +79,7 @@ impl HttpClient {
         let form = self.build_form(package_name, build_result).await?;
 
         let res = reqwest::Client::new()
-            .post(format!("{}/api/worker/upload", self.config.base_url))
+            .post(format!("{}/api_workers/upload", self.config.base_url))
             .header("Authorization", &self.config.api_key)
             .multipart(form)
             .send().await;

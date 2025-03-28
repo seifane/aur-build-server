@@ -1,6 +1,6 @@
+use crate::models::{PackageStatus, WorkerStatus};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::models::{PackageDefinition, PackageStatus, WorkerStatus};
 
 #[derive(Serialize, Deserialize)]
 pub struct SuccessResponse {
@@ -18,9 +18,12 @@ impl SuccessResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PackageResponse {
-    pub package: PackageDefinition,
+    pub id: i32,
+    pub name: String,
+    pub run_before: Option<String>,
     pub status: PackageStatus,
     pub last_built: Option<DateTime<Utc>>,
+    pub files: Vec<String>,
     pub last_built_version: Option<String>,
     pub last_error: Option<String>,
 }

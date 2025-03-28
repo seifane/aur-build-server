@@ -47,7 +47,7 @@ pub fn packages_list(api: &Api) {
         }
 
         rows.push(vec![
-            (&package.package.name).cell(),
+            (&package.name).cell(),
             package.status.to_string().cell().foreground_color(get_color_from_package_status(&package.status)),
             package.last_built_version.as_ref().unwrap_or(&"None".to_string()).cell(),
             last_built_date.cell(),

@@ -196,13 +196,13 @@ mod tests {
     fn get_config() -> Config {
         Config {
             log_level: LevelFilter::Debug,
-            log_path: PathBuf::from("./test/worker.log"),
+            log_path: PathBuf::from("./tests/worker.log"),
             pacman_config_path: PathBuf::from("../../config/pacman.conf"),
             pacman_mirrorlist_path: PathBuf::from("../../config/mirrorlist"),
             force_base_sandbox_create: false,
-            data_path: PathBuf::from("./test/data"),
-            sandbox_path: PathBuf::from("./test/sandbox"),
-            build_logs_path: PathBuf::from("./test/build_logs"),
+            data_path: PathBuf::from("./tests/data"),
+            sandbox_path: PathBuf::from("./tests/sandbox"),
+            build_logs_path: PathBuf::from("./tests/build_logs"),
             base_url: "".to_string(),
             base_url_ws: "".to_string(),
             api_key: "".to_string(),

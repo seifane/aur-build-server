@@ -1,21 +1,23 @@
-use crate::http::models::PackageBuildData;
 use crate::models::config::Config;
 use crate::persistence::package_store::{PackageInsert, PackageStore};
 use crate::repository::Repository;
 use crate::webhooks::WebhookManager;
-use crate::worker::manager::{WorkerDispatchResult, WorkerManager};
+use crate::worker::worker_manager::{WorkerDispatchResult, WorkerManager};
 use anyhow::Result;
 use common::models::PackageStatus;
 use log::{error, info};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use actix_multipart::form::tempfile::TempFile;
+use actix_ws::{AggregatedMessageStream, Session};
 use tokio::sync::RwLock;
 use tokio::time::sleep;
+use crate::worker::worker::Worker;
 
 pub struct Orchestrator {
-    pub worker_manager: WorkerManager,
+    worker_manager: WorkerManager,
     pub webhook_manager: WebhookManager,
-    pub repository: Repository,
+    repository: Repository,
 
     package_store: PackageStore,
     rebuild_interval: Option<u64>,
@@ -63,36 +65,62 @@ impl Orchestrator {
         &mut self.package_store
     }
 
+    pub fn get_worker_manager(&self) -> &WorkerManager {
+        &self.worker_manager
+    }
+
+    pub async fn add_worker(&mut self, session: Session, stream: AggregatedMessageStream)
+    {
+        self.worker_manager.add(session, stream).await;
+    }
+
     pub async fn remove_worker(&mut self, worker_id: usize) {
-        info!("Removing worker {}", worker_id);
-        let worker = self.worker_manager.remove(worker_id);
-        if let Some(worker) = worker {
-            if let Some(current_job) = worker.get_current_job() {
-                info!(
-                    "Reverting {} back to PENDING because worker is getting removed",
-                    current_job.definition.name
+        if let Some(worker) = self.worker_manager.remove(worker_id) {
+            self.handle_removed_worker(worker).await;
+        }
+    }
+
+    pub async fn remove_finished_workers(&mut self) {
+        let finished_workers = self.worker_manager.remove_finished_workers();
+        for worker in finished_workers {
+            self.handle_removed_worker(worker).await;
+        }
+    }
+
+    async fn handle_removed_worker(&mut self, worker: Worker) {
+        info!("Removing worker {}", worker.get_id());
+        if let Some(current_job) = worker.get_current_job().await {
+            info!(
+                "Reverting {} back to PENDING because worker is getting removed",
+                current_job.definition.name
+            );
+            if let Err(e) = self.get_package_store().update_package_status(
+                current_job.definition.package_id,
+                PackageStatus::PENDING,
+            ).await {
+                error!(
+                    "Failed to reset package status {}: '{}'",
+                    current_job.definition.package_id, e
                 );
-                if let Err(e) = self.get_package_store().update_package_status(
-                    current_job.definition.package_id,
-                    PackageStatus::PENDING,
-                ).await {
-                    error!(
-                        "Failed to reset package status {}: '{}'",
-                        current_job.definition.package_id, e
-                    );
-                };
-            }
+            };
         }
     }
 
     pub async fn handle_package_build_output(
         &mut self,
-        package_name: &String,
-        package_build_data: PackageBuildData<'_>,
+        package_name: String,
+        version: Option<String>,
+        error: Option<String>,
+        log_files: Vec<TempFile>,
+        files: Vec<TempFile>,
     ) -> Result<()> {
-        if let Some(mut package) = self.package_store.get_package_by_name(package_name).await? {
-            self.repository.handle_package_build_output(&mut package, package_build_data).await?;
+        if let Some(mut package) = self.package_store.get_package_by_name(&package_name).await? {
+            let last_version = package.last_built_version.clone();
+            self.repository.handle_package_build_output(&mut package, version, error, log_files, files).await?;
             self.package_store.update_package(&package).await?;
+            if package.last_built_version != last_version {
+                self.webhook_manager.trigger_webhook_package_updated(package.into_package_response()).await;
+            }
         }
         Ok(())
     }
@@ -104,8 +132,11 @@ impl Orchestrator {
         }
 
         while let Some(mut package) = self.package_store.get_next_pending_package().await? {
-            match self.worker_manager.dispatch(package.get_package_job()) {
-                WorkerDispatchResult::NoneAvailable => return Ok(()),
+            match self.worker_manager.dispatch(package.get_package_job()).await {
+                WorkerDispatchResult::NoneAvailable => {
+                    println!("No workers");
+                    return Ok(())
+                },
                 WorkerDispatchResult::Ok => {
                     package.set_status(PackageStatus::BUILDING);
                     self.package_store.update_package(&package).await?;
@@ -130,9 +161,11 @@ impl Orchestrator {
         is_running.store(true, Ordering::SeqCst);
 
         while is_running.load(Ordering::SeqCst) {
+            println!("running");
             if let Err(e) = orchestrator.write().await.dispatch_packages().await {
                 error!("Error while dispatching packages : {}", e);
             }
+            orchestrator.write().await.remove_finished_workers().await;
             sleep(std::time::Duration::from_secs(1)).await;
         }
     }
@@ -140,18 +173,18 @@ impl Orchestrator {
 
 #[cfg(test)]
 mod tests {
-    use crate::http::models::PackageBuildData;
-    use crate::http::multipart::MultipartField;
     use crate::models::config::Config;
     use crate::orchestrator::Orchestrator;
     use crate::persistence::package_store::PackageInsert;
-    use common::models::PackageStatus;
     use log::LevelFilter;
-    use serial_test::serial;
     use std::path::{Path, PathBuf};
     use std::sync::Arc;
-    use tokio::fs::{create_dir, create_dir_all};
+    use actix_multipart::form::tempfile::TempFile;
+    use serial_test::serial;
+    use std::io::Write;
+    use tokio::fs::create_dir_all;
     use tokio::sync::RwLock;
+    use common::models::PackageStatus;
 
     async fn get_instance() -> Orchestrator {
         let config = Config {
@@ -192,31 +225,42 @@ mod tests {
     async fn handle_package_build_output_success_test() {
         let mut orchestrator = get_instance().await;
 
-        let files = vec![MultipartField::File(
-            "aur-build-cli-0.10.0-1-any.pkg.tar.zst".into(),
-            tokio::fs::read("tests/aur-build-cli-0.10.0-1-any.pkg.tar.zst")
-                .await
-                .unwrap(),
-        )];
-        let log_files = vec![MultipartField::File(
-            "log-file.log".into(),
-            "test log file".as_bytes().to_vec(),
-        )];
-
-        let build_data = PackageBuildData {
-            files: Some(&files),
-            log_files: Some(&log_files),
-            errors: vec![],
-            version: Some("11.2.3".to_string()),
+        let mut file = tempfile::Builder::new()
+            .prefix("aur-build-cli-0.10.0-1-any")
+            .suffix(".pkg.tar.zst")
+            .tempfile().unwrap();
+        file.write_all(&tokio::fs::read("tests/aur-build-cli-0.10.0-1-any.pkg.tar.zst").await.unwrap()).unwrap();
+        let package_file = TempFile {
+            file,
+            content_type: None,
+            file_name: Some("aur-build-cli-0.10.0-1-any.pkg.tar.zst".to_string()),
+            size: 1
         };
+
+        let mut file = tempfile::Builder::new()
+            .tempfile().unwrap();
+        writeln!(file, "log-content").unwrap();
+        let log_file = TempFile {
+            file,
+            content_type: None,
+            file_name: Some("test-package.log".to_string()),
+            size: 1
+        };
+
         orchestrator
-            .handle_package_build_output(&"test-package".to_string(), build_data)
+            .handle_package_build_output(
+                "test-package".to_string(),
+                Some("11.2.3".to_string()),
+                None,
+                vec![log_file],
+                vec![package_file])
             .await.unwrap();
 
         assert!(orchestrator
             .config.read().await.serve_path
             .join("aur-build-cli-0.10.0-1-any.pkg.tar.zst")
             .exists());
+
         let package = orchestrator
             .package_store
             .get_package_by_name(&"test-package".to_string()).await
@@ -232,7 +276,7 @@ mod tests {
             "aur-build-cli-0.10.0-1-any.pkg.tar.zst",
             package.get_files()[0].as_str()
         );
-        assert!(Path::new("/tmp/aur-build-server-test/logs/log-file.log").exists());
+        assert!(Path::new("/tmp/aur-build-server-test/logs/test-package.log").exists());
 
         let database_path = PathBuf::from("/tmp/aur-build-server-test/repo/test.db");
         assert!(database_path.exists());
@@ -243,20 +287,23 @@ mod tests {
     async fn handle_package_build_output_fail_test() {
         let mut orchestrator = get_instance().await;
 
-        let files = vec![];
-        let log_files = vec![MultipartField::File(
-            "log-file.log".into(),
-            "test log file".as_bytes().to_vec(),
-        )];
-
-        let build_data = PackageBuildData {
-            files: Some(&files),
-            log_files: Some(&log_files),
-            errors: vec!["Error test".into()],
-            version: Some("11.2.3".to_string()),
+        let mut file = tempfile::Builder::new()
+            .tempfile().unwrap();
+        writeln!(file, "log-content").unwrap();
+        let log_file = TempFile {
+            file,
+            content_type: None,
+            file_name: Some("test-package.log".to_string()),
+            size: 1
         };
+
         orchestrator
-            .handle_package_build_output(&"test-package".to_string(), build_data)
+            .handle_package_build_output(
+                "test-package".to_string(),
+                Some("11.2.3".to_string()),
+                Some("Error test".to_string()),
+                vec![log_file],
+                vec![])
             .await.unwrap();
 
         let package = orchestrator.package_store
@@ -266,6 +313,6 @@ mod tests {
         assert!(package.get_last_built().is_some());
         assert!(package.last_built_version.is_none());
         assert_eq!(0, package.get_files().len());
-        assert!(Path::new("/tmp/aur-build-server-test/logs/log-file.log").exists());
+        assert!(Path::new("/tmp/aur-build-server-test/logs/test-package.log").exists());
     }
 }

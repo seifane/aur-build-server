@@ -1,3 +1,5 @@
+#![feature(extract_if)]
+
 mod http;
 mod models;
 mod orchestrator;
@@ -12,7 +14,7 @@ use std::sync::Arc;
 use simplelog::{ColorChoice, CombinedLogger, Config as SimpleLogConfig, TerminalMode, TermLogger, WriteLogger};
 use log::{debug, info};
 use tokio::sync::{RwLock};
-use crate::http::start_http;
+use crate::http::{start_http, HttpState};
 use crate::models::config::Config;
 use crate::orchestrator::Orchestrator;
 
@@ -25,7 +27,10 @@ pub async fn start(config: Config) -> Result<()> {
     let orchestrator_task = tokio::task::spawn(Orchestrator::dispatch_loop(orchestrator.clone()));
 
     info!("Starting http");
-    start_http(orchestrator, config).await;
+    start_http(HttpState {
+        orchestrator,
+        config,
+    }).await?;
     info!("Stopped http");
 
     orchestrator_task.abort();

@@ -282,6 +282,7 @@ mod tests {
     pub async fn test_dependencies_in_pkgbase() {
         let job = PackageJob {
             definition: PackageDefinition {
+                package_id: 1,
                 name: "phpstorm".to_string(),
                 run_before: None,
                 patches: None,
@@ -299,6 +300,7 @@ mod tests {
     pub async fn test_build_package() {
         let job = PackageJob {
             definition: PackageDefinition {
+                package_id: 1,
                 name: "flutter".to_string(),
                 run_before: None,
                 patches: None,

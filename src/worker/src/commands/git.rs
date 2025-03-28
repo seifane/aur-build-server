@@ -93,6 +93,7 @@ mod tests {
 
         let package = PackageJob {
             definition: PackageDefinition {
+                package_id: 1,
                 name: "google-chrome".to_string(),
                 run_before: None,
                 patches: Some(vec![

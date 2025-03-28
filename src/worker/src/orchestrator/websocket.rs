@@ -135,7 +135,7 @@ impl WebsocketClient {
     pub fn new(config: &Config, state: Arc<RwLock<State>>) -> WebsocketClient
     {
         WebsocketClient {
-            url: format!("{}/ws", config.base_url_ws),
+            url: format!("{}/api_workers/ws", config.base_url_ws),
             api_key: config.api_key.clone(),
 
             state,

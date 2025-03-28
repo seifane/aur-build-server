@@ -1,2 +1,2 @@
 pub mod worker;
-pub mod manager;
+pub mod worker_manager;

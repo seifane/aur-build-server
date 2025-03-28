@@ -1,18 +1,16 @@
 mod manager;
 
-use crate::http::models::PackageBuildData;
-use crate::http::multipart::MultipartField::File as MultipartFile;
 use crate::models::config::Config;
 use crate::persistence::package_store::{Package};
 use crate::repository::manager::RepositoryManager;
 use anyhow::{Result};
 use chrono::Utc;
 use common::models::PackageStatus;
-use log::{debug, error, info, warn};
-use std::collections::HashMap;
+use log::{error, info, warn};
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::Arc;
+use actix_multipart::form::tempfile::TempFile;
 use tokio::sync::{Mutex, RwLock};
 
 pub struct Repository {
@@ -51,7 +49,10 @@ impl Repository {
     pub async fn handle_package_build_output(
         &mut self,
         package: &mut Package,
-        package_build_data: PackageBuildData<'_>,
+        version: Option<String>,
+        error: Option<String>,
+        log_files: Vec<TempFile>,
+        files: Vec<TempFile>,
     ) -> Result<()> {
         if !self.build_logs_path.exists() {
             if let Err(e) = tokio::fs::create_dir_all(&self.build_logs_path).await {
@@ -59,31 +60,32 @@ impl Repository {
             }
         }
 
-        if let Some(files) = package_build_data.log_files {
-            for file in files.iter() {
-                if let MultipartFile(filename, content) = file {
-                    if let Err(e) =
-                        tokio::fs::write(&self.build_logs_path.join(filename), content).await
-                    {
-                        error!("Failed to write log file '{}': {}", filename, e);
-                    }
-                }
+        for log_file in log_files {
+            if let Some(filename) = log_file.file_name {
+                match log_file.file.persist(&self.build_logs_path.join(&filename)) {
+                    Ok(_) => info!("Successfully persisted log file '{}'", filename),
+                    Err(e) => error!("Unable to persist log file '{}': '{}'", filename, e),
+                };
             }
         }
-
         let mut package_files = Vec::new();
-        if let Some(files) = package_build_data.files {
-            for file in files.iter() {
-                if let MultipartFile(filename, content) = file {
-                    let path = self.path.join(filename);
-                    info!("Copying {filename} to {:?}...", path.as_path());
-                    tokio::fs::write(path, content).await.unwrap();
-                    package_files.push(filename.clone());
+
+        for file in files {
+            if let Some(filename) = file.file_name {
+                match file.file.persist(&self.path.join(&filename)) {
+                    Ok(_) => info!("Successfully package file '{}'", filename),
+                    Err(e) => error!("Unable to persist package file '{}': '{}'", filename, e),
                 }
+                package_files.push(filename)
             }
         }
 
-        self.update_package_state_from_build_data(package, package_build_data, &package_files);
+        self.update_package_state_from_build_data(
+            package,
+            package_files.clone(),
+            error,
+            version,
+        );
 
         if !package_files.is_empty() {
             let res = self
@@ -107,22 +109,23 @@ impl Repository {
     fn update_package_state_from_build_data(
         &mut self,
         package: &mut Package,
-        build_data: PackageBuildData,
-        package_files: &Vec<String>,
+        package_files: Vec<String>,
+        error: Option<String>,
+        version: Option<String>,
     ) {
         package.set_last_built(Some(Utc::now()));
-        if let Some(error) = build_data.errors.first() {
+        if let Some(error) = error {
             package.set_status(PackageStatus::FAILED);
             package.last_error = Some(error.clone());
             error!("Error while building {}: '{}'", package.get_name(), error);
         } else {
             package.set_status(PackageStatus::BUILT);
             package.last_error = None;
-            package.last_built_version = build_data.version.clone();
+            package.last_built_version = version;
             info!("Built {}", package.get_name());
         }
 
-        *package.get_files_mut() = package_files.clone();
+        *package.get_files_mut() = package_files;
     }
 
     // pub async fn rebuild_repo(&mut self) -> Result<()> {
