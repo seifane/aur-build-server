@@ -5,9 +5,10 @@ use actix_web::http::StatusCode;
 use actix_web::web::{scope, Json};
 use actix_web::{web, HttpResponse, Scope};
 use anyhow::anyhow;
-use common::http::payloads::{PackageRebuildPayload, PatchPackage, PostPackage};
+use common::http::payloads::{PackageRebuildPayload, UpdatePackagePayload, CreatePackagePayload};
 use common::http::responses::PackageResponse;
 use std::path::Component;
+use serde::Deserialize;
 
 pub fn register() -> Scope {
     scope("/packages")
@@ -19,22 +20,34 @@ pub fn register() -> Scope {
         .route("/{id}/logs", web::get().to(action_logs))
 }
 
-async fn index(state: web::Data<HttpState>) -> JsonResult<Vec<PackageResponse>> {
-    let mut packages = Vec::new();
-    for package in state
-        .orchestrator
-        .write()
-        .await
-        .get_package_store()
-        .get_packages()
-        .await?
-    {
-        packages.push(package.into_package_response());
-    }
-    Ok(Json(packages))
+#[derive(Deserialize)]
+struct IndexQuery {
+    pub search: Option<String>,
 }
 
-async fn post(state: web::Data<HttpState>, body: Json<PostPackage>) -> JsonResult<PackageResponse> {
+async fn index(state: web::Data<HttpState>, query: web::Query<IndexQuery>) -> JsonResult<Vec<PackageResponse>> {
+    let packages = if let Some(search) = query.into_inner().search {
+        state
+            .orchestrator
+            .write()
+            .await
+            .get_package_store()
+            .search_packages_by_name(search)
+            .await?
+    } else {
+        state
+            .orchestrator
+            .write()
+            .await
+            .get_package_store()
+            .get_packages()
+            .await?
+    };
+
+    Ok(Json(packages.into_iter().map(Into::into).collect()))
+}
+
+async fn post(state: web::Data<HttpState>, body: Json<CreatePackagePayload>) -> JsonResult<PackageResponse> {
     let body = body.into_inner();
 
     let package = state.orchestrator.write().await
@@ -43,7 +56,7 @@ async fn post(state: web::Data<HttpState>, body: Json<PostPackage>) -> JsonResul
             name: body.name,
             run_before: body.run_before,
         }).await?;
-    Ok(Json(package.into_package_response()))
+    Ok(Json(package.into()))
 }
 
 async fn rebuild(state: web::Data<HttpState>, body: Json<PackageRebuildPayload>) -> JsonResult<SuccessResponse> {
@@ -57,7 +70,7 @@ async fn rebuild(state: web::Data<HttpState>, body: Json<PackageRebuildPayload>)
     Ok(Json(SuccessResponse::from(true)))
 }
 
-async fn patch(state: web::Data<HttpState>, path: web::Path<i32>, body: Json<PatchPackage>) -> JsonResult<PackageResponse>
+async fn patch(state: web::Data<HttpState>, path: web::Path<i32>, body: Json<UpdatePackagePayload>) -> JsonResult<PackageResponse>
 {
     let id = path.into_inner();
     let body = body.into_inner();
@@ -66,7 +79,7 @@ async fn patch(state: web::Data<HttpState>, path: web::Path<i32>, body: Json<Pat
     if let Some(mut package) = orchestrator.get_package_store().get_package(id).await? {
         package.run_before = body.run_before;
         orchestrator.get_package_store().update_package(&package).await?;
-        return Ok(Json(package.into_package_response()));
+        return Ok(Json(package.into()));
     }
 
     Err(HttpError::not_found())
@@ -139,7 +152,7 @@ mod tests {
         let (app, state) = get_test_app!();
         let req = test::TestRequest::post()
             .uri("/api/packages")
-            .set_json(PostPackage {
+            .set_json(CreatePackagePayload {
                 name: "test-insert".to_string(),
                 run_before: Some("testrun".to_string()),
             })
@@ -187,7 +200,7 @@ mod tests {
 
         let req = test::TestRequest::patch()
             .uri("/api/packages/1")
-            .set_json(PatchPackage {
+            .set_json(UpdatePackagePayload {
                 run_before: Some("run_before_update".to_string()),
             })
             .to_request();

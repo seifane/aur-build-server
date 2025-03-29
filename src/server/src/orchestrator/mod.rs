@@ -119,7 +119,7 @@ impl Orchestrator {
             self.repository.handle_package_build_output(&mut package, version, error, log_files, files).await?;
             self.package_store.update_package(&package).await?;
             if package.last_built_version != last_version {
-                self.webhook_manager.trigger_webhook_package_updated(package.into_package_response()).await;
+                self.webhook_manager.trigger_webhook_package_updated(package.into()).await;
             }
         }
         Ok(())
@@ -132,7 +132,8 @@ impl Orchestrator {
         }
 
         while let Some(mut package) = self.package_store.get_next_pending_package().await? {
-            match self.worker_manager.dispatch(package.get_package_job()).await {
+            let patches = self.package_store.get_patches_for_package(package.get_id()).await?;
+            match self.worker_manager.dispatch(package.get_package_job(patches)).await {
                 WorkerDispatchResult::NoneAvailable => {
                     println!("No workers");
                     return Ok(())

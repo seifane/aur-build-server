@@ -2,6 +2,7 @@ mod api_worker;
 mod base;
 mod packages;
 mod workers;
+mod patches;
 
 use crate::models::config::Config;
 use crate::orchestrator::Orchestrator;
@@ -44,7 +45,8 @@ fn get_app(cfg: &mut ServiceConfig, state: HttpState) {
         .service(
             web::scope("/api")
                 .service(workers::register())
-                .service(packages::register()),
+                .service(patches::register())
+                .service(packages::register())
         )
         .service(api_worker::register());
 }
@@ -74,14 +76,14 @@ mod tests {
                 use crate::http::{get_app, HttpState};
                 use crate::models::config::Config;
                 use crate::orchestrator::Orchestrator;
-                use crate::persistence::package_store::PackageInsert;
+                use crate::persistence::package_store::{PackageInsert, PackagePatchInsert};
+                use common::models::PackageStatus;
                 use actix_web::{test, App};
                 use log::LevelFilter;
                 use std::path::PathBuf;
                 use std::sync::Arc;
                 use tokio::sync::RwLock;
                 use chrono::Utc;
-
 
                  let config = Config {
                     log_level: LevelFilter::Off,
@@ -113,6 +115,12 @@ mod tests {
                 package.get_files_mut().push("file1.tar".to_string());
                 package.set_last_built(Some(Utc::now()));
                 orchestrator.get_package_store().update_package(&package).await.unwrap();
+
+                orchestrator.get_package_store().create_patch(PackagePatchInsert {
+                    package_id: 1,
+                    url: "http://test.com/patch".to_string(),
+                    sha_512: Some("sha".to_string())
+                }).await.unwrap();
 
                 let state = HttpState {
                     orchestrator: Arc::new(RwLock::new(orchestrator)),

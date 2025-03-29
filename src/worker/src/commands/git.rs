@@ -5,9 +5,9 @@ use git2::{Diff, ObjectType, Repository};
 use log::{debug, info};
 use reqwest::Client;
 use sha2::{Digest, Sha512};
-use common::models::{PackageJob, PackagePatch};
+use common::models::{PackageJob, PackagePatchDefinition};
 
-async fn fetch_patch(patch: &PackagePatch) -> Result<String>
+async fn fetch_patch(patch: &PackagePatchDefinition) -> Result<String>
 {
     let content = Client::new().get(&patch.url)
         .send()
@@ -44,14 +44,12 @@ fn apply_patch(repository: &Repository, content: &String) -> Result<()>
 
 pub async fn apply_patches(package: &PackageJob, repository: Repository) -> Result<()>
 {
-    if let Some(patches) = package.definition.patches.as_ref() {
-        for patch in patches {
-            info!("Applying patch {} on {} ...", patch.url, package.definition.name);
-            let patch_content = fetch_patch(patch).await?;
-            info!("Patch content : '{}'", patch_content);
-            apply_patch(&repository, &patch_content)?;
-            info!("Patch is applied !");
-        }
+    for patch in package.definition.patches.iter() {
+        info!("Applying patch {} on {} ...", patch.url, package.definition.name);
+        let patch_content = fetch_patch(patch).await?;
+        info!("Patch content : '{}'", patch_content);
+        apply_patch(&repository, &patch_content)?;
+        info!("Patch is applied !");
     }
 
     Ok(())
@@ -84,7 +82,7 @@ pub fn clone_repo(data_path: &PathBuf, repo_name: &String) -> Result<Repository>
 mod tests {
     use std::path::PathBuf;
     use tokio::fs::{read_to_string, remove_dir_all};
-    use common::models::{PackageDefinition, PackageJob, PackagePatch};
+    use common::models::{PackageDefinition, PackageJob, PackagePatchDefinition};
     use crate::commands::git::{apply_patches, clone_repo};
 
     #[tokio::test]
@@ -96,12 +94,12 @@ mod tests {
                 package_id: 1,
                 name: "google-chrome".to_string(),
                 run_before: None,
-                patches: Some(vec![
-                    PackagePatch {
+                patches: vec![
+                    PackagePatchDefinition {
                         url: "https://gist.githubusercontent.com/seifane/d1b04045a02452ada1fe894d18e2c2aa/raw/bc01f21fc579164d69dff0191685647d81d4b27e/gistfile1.txt".to_string(),
                         sha512: Some("cb8e7696fb1ff4fd6ed0d5200b2665c470aaf1ed2f67e0b73762b242327bdde34512afcf728151656d3442579e655465fc6d6fb89ff4412fad16357eb9c7632a".to_string()),
                     }
-                ]),
+                ],
             },
             last_built_version: None,
         };

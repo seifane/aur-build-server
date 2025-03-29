@@ -1,5 +1,3 @@
-#![feature(extract_if)]
-
 mod http;
 mod models;
 mod orchestrator;

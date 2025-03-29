@@ -2,7 +2,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct PackagePatch {
+pub struct PackagePatchDefinition {
     pub url: String,
     pub sha512: Option<String>,
 }
@@ -12,7 +12,7 @@ pub struct PackageDefinition {
     pub package_id: i32,
     pub name: String,
     pub run_before: Option<String>,
-    pub patches: Option<Vec<PackagePatch>>,
+    pub patches: Vec<PackagePatchDefinition>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

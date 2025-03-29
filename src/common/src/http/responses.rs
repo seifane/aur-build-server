@@ -29,6 +29,14 @@ pub struct PackageResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PackagePatchResponse {
+    pub id: i32,
+    pub package_id: i32,
+    pub url: String,
+    pub sha_512: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorkerResponse {
     pub id: usize,
     pub status: WorkerStatus,

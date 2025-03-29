@@ -4,7 +4,7 @@ use diesel::backend::Backend;
 use diesel::deserialize::FromSql;
 use diesel::serialize::{IsNull, Output, ToSql};
 use diesel::sql_types::Text;
-use diesel::{AsChangeset, AsExpression, Connection, ExpressionMethods, FromSqlRow, Insertable, OptionalExtension, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper, SqliteConnection};
+use diesel::{AsChangeset, AsExpression, Connection, ExpressionMethods, FromSqlRow, Insertable, OptionalExtension, QueryDsl, Queryable, RunQueryDsl, Selectable, SelectableHelper, SqliteConnection, TextExpressionMethods};
 use std::ops::{DerefMut, Sub};
 use std::path::PathBuf;
 use std::sync::{Arc};
@@ -13,8 +13,8 @@ use diesel::sqlite::Sqlite;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use log::info;
 use tokio::sync::Mutex;
-use common::http::responses::PackageResponse;
-use common::models::{PackageDefinition, PackageJob, PackageStatus};
+use common::http::responses::{PackagePatchResponse, PackageResponse};
+use common::models::{PackageDefinition, PackageJob, PackagePatchDefinition, PackageStatus};
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
@@ -84,19 +84,21 @@ impl Package {
         &mut self.files.0
     }
 
-    pub fn get_package_job(&self) -> PackageJob {
+    pub fn get_package_job(&self, patches: Vec<PackagePatch>) -> PackageJob {
         PackageJob {
             definition: PackageDefinition {
                 package_id: self.id,
                 name: self.name.clone(),
                 run_before: self.run_before.clone(),
-                patches: None,
+                patches: patches.into_iter().map(Into::into).collect(),
             },
             last_built_version: self.last_built_version.clone(),
         }
     }
+}
 
-    pub fn into_package_response(self) -> PackageResponse {
+impl Into<PackageResponse> for Package {
+    fn into(self) -> PackageResponse {
         PackageResponse {
             id: self.get_id(),
             name: self.get_name().to_string(),
@@ -134,6 +136,26 @@ impl PackagePatch {
     }
 }
 
+impl Into<PackagePatchDefinition> for PackagePatch {
+    fn into(self) -> PackagePatchDefinition {
+        PackagePatchDefinition {
+            url: self.url,
+            sha512: self.sha_512,
+        }
+    }
+}
+
+impl Into<PackagePatchResponse> for PackagePatch {
+    fn into(self) -> PackagePatchResponse {
+        PackagePatchResponse {
+            id: self.id,
+            package_id: self.package_id,
+            url: self.url,
+            sha_512: self.sha_512,
+        }
+    }
+}
+
 #[derive(Insertable)]
 #[diesel(table_name = schema::package_patches)]
 pub struct PackagePatchInsert {
@@ -152,6 +174,7 @@ impl PackageStore {
         Ok(PackageStore { connection })
     }
 
+    #[cfg(test)]
     pub fn in_memory() -> Result<Self> {
         let connection = Arc::new(Mutex::new(SqliteConnection::establish(":memory:")?));
         Ok(PackageStore { connection })
@@ -243,6 +266,17 @@ impl PackageStore {
             .order(schema::packages::id.asc())
             .select(Package::as_select())
             .load::<Package>(self.connection.lock().await.deref_mut())?;
+        Ok(packages)
+    }
+
+    pub async fn search_packages_by_name(&mut self, search: String) -> Result<Vec<Package>>
+    {
+        let packages = schema::packages::dsl::packages
+            .order(schema::packages::id.asc())
+            .filter(schema::packages::name.like(format!("%{}%", search)))
+            .select(Package::as_select())
+            .load::<Package>(self.connection.lock().await.deref_mut())?;
+
         Ok(packages)
     }
 

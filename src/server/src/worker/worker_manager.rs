@@ -56,9 +56,21 @@ impl WorkerManager {
     }
 
     pub fn remove_finished_workers(&mut self) -> Vec<Worker> {
-        self.workers
-            .extract_if(.., |i| i.is_finished())
-            .collect()
+        // TODO: Replace with extract_if when stable
+        let indexes: Vec<usize> = self.workers
+            .iter()
+            .enumerate()
+            .filter(|(_, w)| w.is_finished())
+            .map(|(i, _)| i)
+            .rev()
+            .collect();
+
+        let mut removed = Vec::new();
+        for index in indexes {
+            removed.push(self.workers.remove(index));
+        }
+
+        removed
     }
 
     async fn get_next_free_worker(&mut self) -> Option<&mut Worker> {

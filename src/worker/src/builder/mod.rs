@@ -285,7 +285,7 @@ mod tests {
                 package_id: 1,
                 name: "phpstorm".to_string(),
                 run_before: None,
-                patches: None,
+                patches: vec![],
             },
             last_built_version: None,
         };
@@ -303,7 +303,7 @@ mod tests {
                 package_id: 1,
                 name: "flutter".to_string(),
                 run_before: None,
-                patches: None,
+                patches: vec![],
             },
             last_built_version: None,
         };
