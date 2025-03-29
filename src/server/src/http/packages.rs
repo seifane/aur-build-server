@@ -137,7 +137,10 @@ mod tests {
     #[actix_web::test]
     async fn test_index_packages() {
         let (app, _) = get_test_app!();
-        let req = test::TestRequest::get().uri("/api/packages").to_request();
+        let req = test::TestRequest::get()
+            .insert_header(("Authorization", "api_key"))
+            .uri("/api/packages")
+            .to_request();
         let resp = test::call_service(&app, req).await;
 
         assert!(resp.status().is_success());
@@ -151,6 +154,7 @@ mod tests {
     async fn test_post_packages() {
         let (app, state) = get_test_app!();
         let req = test::TestRequest::post()
+            .insert_header(("Authorization", "api_key"))
             .uri("/api/packages")
             .set_json(CreatePackagePayload {
                 name: "test-insert".to_string(),
@@ -176,6 +180,7 @@ mod tests {
         let (app, state) = get_test_app!();
 
         let req = test::TestRequest::post()
+            .insert_header(("Authorization", "api_key"))
             .uri("/api/packages/rebuild")
             .set_json(PackageRebuildPayload {
                 packages: Some(vec![2]),
@@ -199,6 +204,7 @@ mod tests {
         let (app, state) = get_test_app!();
 
         let req = test::TestRequest::patch()
+            .insert_header(("Authorization", "api_key"))
             .uri("/api/packages/1")
             .set_json(UpdatePackagePayload {
                 run_before: Some("run_before_update".to_string()),
@@ -220,6 +226,7 @@ mod tests {
         let (app, state) = get_test_app!();
 
         let req = test::TestRequest::delete()
+            .insert_header(("Authorization", "api_key"))
             .uri("/api/packages/1")
             .to_request();
         let resp = test::call_service(&app, req).await;
@@ -248,6 +255,7 @@ mod tests {
         }
 
         let req = test::TestRequest::get()
+            .insert_header(("Authorization", "api_key"))
             .uri("/api/packages/1/logs")
             .to_request();
         let resp = test::call_service(&app, req).await;

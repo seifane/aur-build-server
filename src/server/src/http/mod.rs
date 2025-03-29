@@ -3,7 +3,9 @@ mod base;
 mod packages;
 mod workers;
 mod patches;
+mod auth_middleware;
 
+use crate::http::auth_middleware::Auth;
 use crate::models::config::Config;
 use crate::orchestrator::Orchestrator;
 use actix_web::web::ServiceConfig;
@@ -13,37 +15,18 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-// async fn authorize((token, headers): (String, HeaderMap<HeaderValue>)) -> Result<(), Rejection> {
-//     return match headers.get("authorization") {
-//         Some(authorization) => {
-//             let auth = from_utf8(authorization.as_bytes()).unwrap();
-//             if auth == token.as_str() {
-//                 Ok(())
-//             } else {
-//                 Err(reject::reject())
-//             }
-//         }
-//         None => Err(reject::reject()),
-//     }
-// }
-//
-// pub fn with_auth(token: String) -> impl Filter<Extract=((), ), Error=Rejection> + Clone {
-//     headers_cloned()
-//         .map(move |headers: HeaderMap<HeaderValue>| (token.clone(), headers))
-//         .and_then(authorize)
-// }
-
 #[derive(Clone)]
 pub struct HttpState {
     pub orchestrator: Arc<RwLock<Orchestrator>>,
     pub config: Arc<RwLock<Config>>,
 }
 
-fn get_app(cfg: &mut ServiceConfig, state: HttpState) {
+fn get_app(cfg: &mut ServiceConfig, state: HttpState, api_key: &String) {
     cfg
         .app_data(web::Data::new(state.clone()))
         .service(
             web::scope("/api")
+                .wrap(Auth::new(api_key.clone()))
                 .service(workers::register())
                 .service(patches::register())
                 .service(packages::register())
@@ -57,9 +40,11 @@ pub async fn start_http(state: HttpState) -> Result<()> {
         state.config.read().await.port,
     );
 
+    let api_key = state.config.read().await.api_key.clone();
+
     HttpServer::new(move || {
         App::new()
-            .configure(|cfg| get_app(cfg, state.clone()))
+            .configure(|cfg| get_app(cfg, state.clone(), &api_key))
     })
     .bind(addr)?
     .run()
@@ -127,7 +112,7 @@ mod tests {
                     config,
                 };
                 let app = App::new()
-                    .configure(|cfg| get_app(cfg, state.clone()));
+                    .configure(|cfg| get_app(cfg, state.clone(), &"api_key".to_string()));
 
                     (test::init_service(app).await, state)
                 }

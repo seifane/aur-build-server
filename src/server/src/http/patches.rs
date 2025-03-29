@@ -66,6 +66,7 @@ mod tests {
     async fn test_index_patches() {
         let (app, _) = get_test_app!();
         let req = test::TestRequest::get()
+            .insert_header(("Authorization", "api_key"))
             .uri("/api/packages/1/patches")
             .to_request();
         let resp = test::call_service(&app, req).await;
@@ -83,6 +84,7 @@ mod tests {
     async fn test_post_patches() {
         let (app, state) = get_test_app!();
         let req = test::TestRequest::post()
+            .insert_header(("Authorization", "api_key"))
             .uri("/api/packages/1/patches")
             .set_json(CreatePackagePatchPayload {
                 url: "http://created.com".to_string(),
@@ -113,6 +115,7 @@ mod tests {
     async fn test_delete_patches() {
         let (app, state) = get_test_app!();
         let req = test::TestRequest::delete()
+            .insert_header(("Authorization", "api_key"))
             .uri("/api/packages/1/patches/1")
             .set_json(CreatePackagePatchPayload {
                 url: "http://created.com".to_string(),
