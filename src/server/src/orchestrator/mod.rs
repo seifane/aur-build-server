@@ -208,7 +208,7 @@ mod tests {
     use tokio::sync::RwLock;
     use common::models::PackageStatus;
 
-    async fn get_instance() -> Orchestrator {
+    async fn get_instance() -> (Config, Orchestrator) {
         let config = Config {
             log_level: LevelFilter::Off,
             log_path: PathBuf::from("/tmp/aur-build-server-test/log.txt"),
@@ -223,7 +223,7 @@ mod tests {
             webhooks: vec![],
             packages: vec![],
         };
-        let mut orchestrator = Orchestrator::new(Arc::new(RwLock::new(config))).await.unwrap();
+        let mut orchestrator = Orchestrator::new(Arc::new(RwLock::new(config.clone()))).await.unwrap();
 
         orchestrator.package_store.run_migrations().await.unwrap();
         orchestrator.package_store.create_package(PackageInsert {
@@ -235,17 +235,17 @@ mod tests {
         if test_dir.exists() {
             std::fs::remove_dir_all(test_dir).unwrap();
             create_dir_all(test_dir).await.unwrap();
-            create_dir_all(&orchestrator.config.read().await.serve_path).await.unwrap();
-            create_dir_all(&orchestrator.config.read().await.build_logs_path).await.unwrap();
+            create_dir_all(&config.serve_path).await.unwrap();
+            create_dir_all(&config.build_logs_path).await.unwrap();
         }
 
-        orchestrator
+        (config, orchestrator)
     }
 
     #[tokio::test]
     #[serial]
     async fn handle_package_build_output_success_test() {
-        let mut orchestrator = get_instance().await;
+        let (config, mut orchestrator) = get_instance().await;
 
         let mut file = tempfile::Builder::new()
             .prefix("aur-build-cli-0.10.0-1-any")
@@ -278,8 +278,7 @@ mod tests {
                 vec![package_file])
             .await.unwrap();
 
-        assert!(orchestrator
-            .config.read().await.serve_path
+        assert!(config.serve_path
             .join("aur-build-cli-0.10.0-1-any.pkg.tar.zst")
             .exists());
 
@@ -307,7 +306,7 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn handle_package_build_output_fail_test() {
-        let mut orchestrator = get_instance().await;
+        let (_, mut orchestrator) = get_instance().await;
 
         let mut file = tempfile::Builder::new()
             .tempfile().unwrap();
