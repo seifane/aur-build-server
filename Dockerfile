@@ -1,7 +1,7 @@
 FROM rust AS builder
 COPY . /app
 WORKDIR /app
-RUN cargo build --release --bin aur-build-worker
+RUN cargo build --release
 
 FROM archlinux/archlinux:base-devel AS base
 
