@@ -1,10 +1,24 @@
-use cli_table::{Cell, Style, Table};
+use cli_table::{Cell, CellStruct, Style, Table};
 use colored::Colorize;
-use dialoguer::Input;
+use dialoguer::{Confirm, Input};
 use dialoguer::theme::ColorfulTheme;
+use common::http::payloads::CreatePackagePatchPayload;
 use crate::api::Api;
 use crate::profile::{Profile, ProfileConfig};
 use crate::utils::{get_color_from_package_status, get_color_from_worker_status};
+
+macro_rules! try_get_package_from_name {
+    ($api:expr, $package:expr) => {
+        match $api.get_package_from_name($package) {
+            Ok(res) => res,
+            Err(e) => {
+                eprintln!("{}", e);
+                eprintln!("Aborting ...");
+                return;
+            }
+        }
+    };
+}
 
 pub fn workers_list(api: &Api) {
     let workers_res = api.get_workers().unwrap();
@@ -32,7 +46,7 @@ pub fn workers_delete(api: &Api, id: usize) {
     if res.success {
         println!("Evicted worker successfully");
     } else {
-        println!("Failed to evict worker, is the id correct ?");
+        eprintln!("Failed to evict worker, is the id correct ?");
     }
 }
 
@@ -67,8 +81,60 @@ pub fn packages_list(api: &Api) {
         .unwrap());
 }
 
+pub fn packages_create(api: &Api, name: &Option<String>, run_before: &Option<String>)
+{
+    let (name, run_before) = match name.as_ref() {
+        None => {
+            let name: String = Input::with_theme(&ColorfulTheme::default())
+                .with_prompt("Package name")
+                .interact_text()
+                .unwrap();
+            let run_before: String = Input::with_theme(&ColorfulTheme::default())
+                .with_prompt("Run before command")
+                .interact_text()
+                .unwrap();
+            let run_before = if run_before.is_empty() {
+                None
+            } else {
+                Some(run_before)
+            };
+            (name, run_before)
+        }
+        Some(name) => {
+            (name.to_string(), run_before.clone())
+        }
+    };
+
+    match api.create_package(name, run_before) {
+        Ok(package) => println!("Package {} created successfully", package.name),
+        Err(e) => eprintln!("Failed to create package: {}", e),
+    }
+}
+
+pub fn packages_delete(api: &Api, name: &String)
+{
+    let package = try_get_package_from_name!(api, name);
+    if Confirm::with_theme(&ColorfulTheme::default())
+        .with_prompt(format!("Do you want to delete {} ?", package.name))
+        .default(false)
+        .interact()
+        .unwrap()
+    {
+        match api.delete_package(package.id) {
+            Ok(_) => println!("Package {} deleted", package.name),
+            Err(e) => eprintln!("Failed to delete package {}: {}", package.name, e),
+        }
+    }
+}
+
 pub fn packages_rebuild(api: &Api, packages: Vec<String>, force: bool) {
-    let res = api.rebuild_packages(packages, force);
+    let mut package_ids = Vec::new();
+
+    for package in packages {
+        package_ids.push(try_get_package_from_name!(api, &package).id);
+    }
+
+    let res = api.rebuild_packages(package_ids, force);
     match res {
         Ok(res) => {
             if res.success {
@@ -78,16 +144,72 @@ pub fn packages_rebuild(api: &Api, packages: Vec<String>, force: bool) {
             }
         }
         Err(e) => {
-            println!("Error while rebuilding packages {:?}", e)
+            eprintln!("Error while rebuilding packages {:?}", e)
         }
     }
 }
 
+pub fn patches_list(api: &Api, package_name: &String) {
+    let package = try_get_package_from_name!(api, package_name);
+
+    match api.get_patches(package.id) {
+        Ok(patches) => {
+            if patches.is_empty() {
+                println!("No patches found.");
+                return;
+            }
+            let patches: Vec<Vec<CellStruct>> = patches
+                .into_iter()
+                .map(|patch| {
+                    vec![
+                        patch.id.cell(),
+                        patch.url.cell(),
+                        patch.sha_512.unwrap_or("None".to_string()).cell()
+                    ]
+                })
+                .collect();
+            println!("{}", patches.table()
+                .title(vec![
+                    "Id".cell().bold(true),
+                    "Url".cell().bold(true),
+                    "SHA 512".cell().bold(true),
+                ])
+                .display()
+                .unwrap());
+        }
+        Err(e) => {
+            eprintln!("Error while getting patches: {}", e);
+        }
+    }
+}
+
+pub fn patches_create(api: &Api, package_name: &String, url: &String, sha_512: &Option<String>) {
+    let package = try_get_package_from_name!(api, package_name);
+
+    match api.create_patch(package.id, CreatePackagePatchPayload {
+        url: url.clone(),
+        sha_512: sha_512.clone(),
+    }) {
+        Ok(patch) => println!("Patch created successfully with id {}", patch.id),
+        Err(e) => eprintln!("Failed to create patch: {}", e),
+    }
+}
+
+pub fn patches_delete(api: &Api, package_name: &String, id: i32) {
+    let package = try_get_package_from_name!(api, package_name);
+
+    match api.delete_patch(package.id, id) {
+        Ok(_) => println!("Patch {} deleted", id),
+        Err(e) => eprintln!("Failed to delete patch: {}", e),
+    }
+}
+
 pub fn logs_get(api: &Api, package: String) {
-    let res = api.get_logs(&package);
+    let package = try_get_package_from_name!(api, &package);
+    let res = api.get_logs(package.id);
     match res {
         Ok(contents) => {
-            println!("Logs for {package}");
+            println!("Logs for {}", package.name);
             println!("{}", contents);
         }
         Err(err) => {

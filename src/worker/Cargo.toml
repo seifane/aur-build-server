@@ -1,6 +1,6 @@
 [package]
 name = "aur-build-worker"
-version = "0.20.1"
+version = "0.30.0"
 edition = "2021"
 
 [[bin]]
@@ -29,10 +29,10 @@ tokio-tungstenite = "0.26.1"
 futures = "0.3.31"
 futures-util = { version = "0.3.31", default-features = false, features = ["std", "sink"] }
 
-git2 = "0.19.0"
+git2 = "0.20.1"
 
 relative-path = "1.9.3"
-log = { version = "0.4.22", features = ["serde"] }
+log = { version = "0.4.27", features = ["serde"] }
 simplelog = "0.12.2"
 
 srcinfo = "1.1.0"
@@ -41,7 +41,7 @@ async-recursion = "1.1.1"
 sha2 = "0.10.8"
 base16ct = { version = "0.2.0", features = ["alloc"] }
 
-petgraph = "0.6.5"
+petgraph = "0.7.1"
 
 [dev-dependencies]
 serial_test = "3.2.0"

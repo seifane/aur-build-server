@@ -23,3 +23,9 @@ pub struct CreatePackagePatchPayload {
     pub url: String,
     pub sha_512: Option<String>,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct UpdatePackagePatchPayload {
+    pub url: String,
+    pub sha_512: Option<String>,
+}

@@ -1,5 +1,5 @@
 use crate::models::config::Config;
-use crate::persistence::package_store::{PackageInsert, PackageStore};
+use crate::persistence::package_store::{PackageInsert, PackagePatchInsert, PackageStore};
 use crate::repository::Repository;
 use crate::webhooks::WebhookManager;
 use crate::worker::worker_manager::{WorkerDispatchResult, WorkerManager};
@@ -14,16 +14,46 @@ use tokio::sync::RwLock;
 use tokio::time::sleep;
 use crate::worker::worker::Worker;
 
+pub async fn migrate_legacy_package_config(
+    config: &Arc<RwLock<Config>>,
+    package_store: &mut PackageStore
+) -> Result<()> {
+    let packages = package_store.get_packages().await?;
+
+    for legacy_package in config.read().await.packages.iter() {
+        if packages.iter().find(|i| i.get_name() == &legacy_package.name).is_none() {
+            match package_store.create_package(PackageInsert {
+                name: legacy_package.name.clone(),
+                run_before: legacy_package.run_before.clone(),
+            }).await {
+                Ok(new_package) => {
+                    info!("Imported {} from legacy", legacy_package.name);
+                    if let Some(patches) = legacy_package.patches.as_ref() {
+                        for legacy_patch in patches.iter() {
+                            package_store.create_patch(PackagePatchInsert {
+                                package_id: new_package.get_id(),
+                                url: legacy_patch.url.clone(),
+                                sha_512: legacy_patch.sha512.clone(),
+                            }).await?;
+                        }
+                    }
+                }
+                Err(e) => error!("Failed to migrate package from legacy config '{}': {}", legacy_package.name, e),
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub struct Orchestrator {
     worker_manager: WorkerManager,
-    pub webhook_manager: WebhookManager,
+    webhook_manager: WebhookManager,
     repository: Repository,
 
     package_store: PackageStore,
     rebuild_interval: Option<u64>,
     is_running: Arc<AtomicBool>,
-
-    pub config: Arc<RwLock<Config>>,
 }
 
 impl Orchestrator {
@@ -33,18 +63,13 @@ impl Orchestrator {
             (config.database_path.clone(), config.rebuild_time.clone())
         };
 
+        let should_migrate_packages =  !database_path.exists();
+
         let mut package_store = PackageStore::from_disk(database_path)?;
         package_store.run_migrations().await?;
 
-        let packages = package_store.get_packages().await?;
-        for package in config.read().await.packages.iter() {
-            if packages.iter().find(|i| i.get_name() == &package.name).is_none() {
-                println!("Temp add packages to store");
-                package_store.create_package(PackageInsert {
-                    name: package.name.clone(),
-                    run_before: package.run_before.clone(),
-                }).await.unwrap();
-            }
+        if should_migrate_packages {
+            migrate_legacy_package_config(&config, &mut package_store).await?;
         }
 
         Ok(Orchestrator {
@@ -56,8 +81,6 @@ impl Orchestrator {
 
             rebuild_interval,
             is_running: Arc::new(AtomicBool::from(false)),
-
-            config,
         })
     }
 
@@ -135,7 +158,6 @@ impl Orchestrator {
             let patches = self.package_store.get_patches_for_package(package.get_id()).await?;
             match self.worker_manager.dispatch(package.get_package_job(patches)).await {
                 WorkerDispatchResult::NoneAvailable => {
-                    println!("No workers");
                     return Ok(())
                 },
                 WorkerDispatchResult::Ok => {
@@ -162,7 +184,6 @@ impl Orchestrator {
         is_running.store(true, Ordering::SeqCst);
 
         while is_running.load(Ordering::SeqCst) {
-            println!("running");
             if let Err(e) = orchestrator.write().await.dispatch_packages().await {
                 error!("Error while dispatching packages : {}", e);
             }

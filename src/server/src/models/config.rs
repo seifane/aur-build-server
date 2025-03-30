@@ -7,8 +7,6 @@ use clap::Parser;
 use log::LevelFilter;
 use serde::Deserialize;
 
-use common::models::PackageDefinition;
-
 macro_rules! merge_config_option {
     ($a:expr, $b:expr, $f: ident) => {
         {
@@ -70,7 +68,7 @@ struct SharedConfig {
     #[clap(skip)]
     pub webhooks: Option<Vec<String>>,
     #[clap(skip)]
-    pub packages: Vec<PackageDefinition>,
+    pub packages: Vec<LegacyPackageDefinition>,
 }
 
 impl SharedConfig {
@@ -80,6 +78,19 @@ impl SharedConfig {
         let config: SharedConfig = serde_json::from_str(file.as_str())?;
         Ok(config)
     }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct LegacyPatch {
+    pub url: String,
+    pub sha512: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct LegacyPackageDefinition {
+    pub name: String,
+    pub run_before: Option<String>,
+    pub patches: Option<Vec<LegacyPatch>>
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -99,7 +110,7 @@ pub struct Config {
     pub database_path: PathBuf,
 
     pub webhooks: Vec<String>,
-    pub packages: Vec<PackageDefinition>,
+    pub packages: Vec<LegacyPackageDefinition>,
 }
 
 impl Config {

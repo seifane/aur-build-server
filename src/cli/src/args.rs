@@ -30,6 +30,10 @@ pub enum Commands {
         #[command(subcommand)]
         command: PackageCommands
     },
+    Patches {
+        #[command(subcommand)]
+        command: PatchCommands
+    },
     /// <package> Fetch the logs for the given package.
     Logs {
         package: String,
@@ -60,11 +64,44 @@ pub enum WorkerCommands {
 pub enum PackageCommands {
     /// List packages
     List {},
+
+    /// Create a new package
+    Create {
+        name: Option<String>,
+        run_before: Option<String>
+    },
+
+    /// Delete a package
+    Delete {
+        name: String
+    },
+
     /// package1 package2 [...] Rebuild specified packages, if no specified packages rebuild all.
     Rebuild {
         packages: Vec<String>,
         #[clap(long, short, action)]
         force: bool
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum PatchCommands {
+    /// List patches for packages
+    List {
+        package_name: String,
+    },
+
+    /// Create a new patch for a package
+    Create {
+        package_name: String,
+        url: String,
+        sha_512: Option<String>,
+    },
+
+    /// Delete a patch for a package
+    Delete {
+        package_name: String,
+        id: i32
     }
 }
 

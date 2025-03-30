@@ -8,8 +8,8 @@ use std::process::exit;
 use clap::Parser;
 use colored::Colorize;
 use crate::api::Api;
-use crate::args::{Args, Commands, PackageCommands, ProfileCommands, WebhookCommands, WebhookTriggerCommands, WorkerCommands};
-use crate::commands::{logs_get, packages_list, packages_rebuild, profile_create, profile_delete, profile_list, profile_set_default, webhook_trigger_package_update, workers_delete, workers_list};
+use crate::args::{Args, Commands, PackageCommands, PatchCommands, ProfileCommands, WebhookCommands, WebhookTriggerCommands, WorkerCommands};
+use crate::commands::{logs_get, packages_create, packages_delete, packages_list, packages_rebuild, patches_create, patches_delete, patches_list, profile_create, profile_delete, profile_list, profile_set_default, webhook_trigger_package_update, workers_delete, workers_list};
 use crate::profile::ProfileConfig;
 
 fn get_api(args: &Args, profile_config: &ProfileConfig) -> Api {
@@ -43,23 +43,33 @@ fn main() {
     let args = Args::parse();
 
     let mut profile_config = ProfileConfig::from_file().expect("Unable to load profile config");
+    let api = get_api(&args, &profile_config);
 
     match &args.command {
         Commands::Workers { command} => {
-            let api = get_api(&args, &profile_config);
             match command {
                 WorkerCommands::List { .. } => workers_list(&api),
                 WorkerCommands::Evict { id } => workers_delete(&api, *id)
             }
         },
         Commands::Packages { command } => {
-            let api = get_api(&args, &profile_config);
             match command {
                 PackageCommands::List {} => packages_list(&api),
+                PackageCommands::Create { name, run_before} => packages_create(&api, name, run_before),
+                PackageCommands::Delete { name } => packages_delete(&api, name),
                 PackageCommands::Rebuild { packages, force } => packages_rebuild(&api, packages.clone(), *force),
             }
         }
-        Commands::Logs { package} => logs_get(&get_api(&args, &profile_config), package.clone()),
+        Commands::Patches { command } => {
+            match command {
+                PatchCommands::List { package_name } => patches_list(&api, package_name),
+                PatchCommands::Create { package_name, url, sha_512 } =>
+                    patches_create(&api, package_name, url, sha_512),
+                PatchCommands::Delete { package_name, id } =>
+                    patches_delete(&api, package_name, *id)
+            }
+        }
+        Commands::Logs { package} => logs_get(&api, package.clone()),
         Commands::Webhooks {command} => {
             match command {
                 WebhookCommands::Trigger { command } => {

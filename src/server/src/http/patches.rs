@@ -1,9 +1,9 @@
-use crate::http::base::JsonResult;
+use crate::http::base::{HttpError, JsonResult};
 use crate::http::HttpState;
 use crate::persistence::package_store::PackagePatchInsert;
 use actix_web::web::{scope, Json};
 use actix_web::{web, Scope};
-use common::http::payloads::CreatePackagePatchPayload;
+use common::http::payloads::{CreatePackagePatchPayload, UpdatePackagePatchPayload};
 use common::http::responses::{PackagePatchResponse, SuccessResponse};
 
 pub fn register() -> Scope
@@ -11,6 +11,7 @@ pub fn register() -> Scope
     scope("/packages/{package_id}/patches")
         .route("", web::get().to(index))
         .route("", web::post().to(post))
+        .route("/{id}", web::patch().to(patch))
         .route("/{id}", web::delete().to(delete))
 }
 
@@ -37,6 +38,31 @@ async fn post(
         }).await?;
 
     Ok(Json(patch.into()))
+}
+
+async fn patch(
+    state: web::Data<HttpState>,
+    path: web::Path<(i32, i32)>,
+    body: Json<UpdatePackagePatchPayload>
+) -> JsonResult<PackagePatchResponse> {
+    let (package_id, patch_id) = path.into_inner();
+
+    let body = body.into_inner();
+
+    if let Some(mut patch) = state.orchestrator.write().await
+        .get_package_store()
+        .get_patch(package_id, patch_id).await? {
+
+        patch.url = body.url;
+        patch.sha_512 = body.sha_512;
+        state.orchestrator.write().await
+            .get_package_store()
+            .update_patch(&patch)
+            .await?;
+        return Ok(Json(patch.into()));
+    }
+
+    Err(HttpError::not_found())
 }
 
 async fn delete(

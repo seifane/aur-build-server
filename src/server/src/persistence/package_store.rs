@@ -124,7 +124,7 @@ pub struct PackageInsert {
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 pub struct PackagePatch {
     id: i32,
-    pub package_id: i32,
+    package_id: i32,
     pub url: String,
     pub sha_512: Option<String>
 }
@@ -133,6 +133,10 @@ impl PackagePatch {
     pub fn get_id(&self) -> i32
     {
         self.id
+    }
+
+    pub fn get_package_id(&self) -> i32 {
+        self.package_id
     }
 }
 
@@ -331,6 +335,17 @@ impl PackageStore {
             .filter(schema::package_patches::id.eq(id))
             .execute(self.connection.lock().await.deref_mut())?;
         Ok(())
+    }
+
+    pub async fn get_patch(&mut self, package_id: i32, id: i32) -> Result<Option<PackagePatch>> {
+        Ok(
+            schema::package_patches::dsl::package_patches
+                .filter(schema::package_patches::package_id.eq(package_id))
+                .filter(schema::package_patches::id.eq(id))
+                .select(PackagePatch::as_select())
+                .first::<PackagePatch>(self.connection.lock().await.deref_mut())
+                .optional()?
+        )
     }
 
     pub async fn get_patches_for_package(&mut self, package_id: i32) -> Result<Vec<PackagePatch>>
