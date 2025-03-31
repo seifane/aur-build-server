@@ -63,7 +63,15 @@ pub enum WorkerCommands {
 #[derive(Subcommand, Debug)]
 pub enum PackageCommands {
     /// List packages
-    List {},
+    List {
+        #[clap(long, short, action)]
+        compact: bool,
+    },
+
+    /// Get detailed package info
+    Get {
+        name: String,
+    },
 
     /// Create a new package
     Create {

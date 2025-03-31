@@ -21,7 +21,7 @@ pub struct PackageJob {
     pub last_built_version: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy, Hash, Eq)]
 #[repr(u8)]
 pub enum PackageStatus {
     UNKNOWN = 0,

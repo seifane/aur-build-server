@@ -3,7 +3,7 @@ use actix_multipart::form::tempfile::TempFile;
 use actix_multipart::form::text::Text;
 use actix_web::{web, Error, HttpRequest, HttpResponse, Scope};
 use actix_web::web::{scope, Json};
-use log::{error, info};
+use log::{debug, error, info};
 use crate::http::base::{JsonResult, SuccessResponse};
 use crate::http::HttpState;
 
@@ -28,6 +28,8 @@ async fn upload(
     state: web::Data<HttpState>,
 ) -> JsonResult<SuccessResponse>
 {
+    debug!("Received upload from worker {:?}", form);
+
     let built_version = match form.version.as_str() {
         "" => None,
         _ => Some(form.version.to_string()),

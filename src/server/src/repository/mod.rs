@@ -73,7 +73,7 @@ impl Repository {
         for file in files {
             if let Some(filename) = file.file_name {
                 match file.file.persist(&self.path.join(&filename)) {
-                    Ok(_) => info!("Successfully package file '{}'", filename),
+                    Ok(_) => info!("Successfully persisted package file '{}'", filename),
                     Err(e) => error!("Unable to persist package file '{}': '{}'", filename, e),
                 }
                 package_files.push(filename)

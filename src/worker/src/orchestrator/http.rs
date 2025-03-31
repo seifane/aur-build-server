@@ -25,7 +25,7 @@ impl HttpClient {
             let file_name = entry.file_name().into_string().unwrap();
 
             info!("Uploading log file {}", file_name);
-            form = form.part("log_files[]", Part::bytes(content).file_name(file_name));
+            form = form.part("log_files", Part::bytes(content).file_name(file_name));
         }
 
         Ok(form)
@@ -41,7 +41,7 @@ impl HttpClient {
 
             info!("Uploading package file {}", file_name);
             // TODO: Stream the payload instead of loading it
-            form = form.part("files[]", Part::bytes(content).file_name(file_name));
+            form = form.part("files", Part::bytes(content).file_name(file_name));
         }
 
         Ok(form)
