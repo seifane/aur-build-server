@@ -13,6 +13,7 @@ use actix_web::{web, App, HttpServer};
 use anyhow::Result;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
+use actix_multipart::form::MultipartFormConfig;
 use tokio::sync::RwLock;
 
 #[derive(Clone)]
@@ -22,7 +23,10 @@ pub struct HttpState {
 }
 
 fn get_app(cfg: &mut ServiceConfig, state: HttpState, api_key: &String) {
-    cfg.app_data(web::Data::new(state.clone())).service(
+    cfg
+        .app_data(web::Data::new(state.clone()))
+        .app_data(MultipartFormConfig::default().total_limit(1024 * 1024 * 1024 * 10)) //10GB
+        .service(
         web::scope("")
             .wrap(Auth::new(api_key.clone()))
             .service(

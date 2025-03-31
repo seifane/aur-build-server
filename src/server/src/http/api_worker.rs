@@ -16,7 +16,7 @@ pub fn register() -> Scope {
 #[derive(Debug, MultipartForm)]
 struct UploadForm {
     pub package_name: Text<String>,
-    pub version: Text<String>,
+    pub version: Option<Text<String>>,
     pub error: Option<Text<String>>,
 
     pub log_files: Vec<TempFile>,
@@ -30,16 +30,11 @@ async fn upload(
 {
     debug!("Received upload from worker {:?}", form);
 
-    let built_version = match form.version.as_str() {
-        "" => None,
-        _ => Some(form.version.to_string()),
-    };
-
     let res = state.orchestrator.write().await
         .handle_package_build_output(
             form.package_name.to_string(),
-            built_version,
-            form.error.map(|o| o.to_string()),
+            form.version.map(|x| x.to_string()),
+            form.error.map(|x| x.to_string()),
             form.log_files,
             form.files,
         ).await;
