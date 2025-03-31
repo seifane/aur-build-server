@@ -41,5 +41,5 @@ pub struct WorkerResponse {
     pub id: usize,
     pub status: WorkerStatus,
     pub current_job: Option<String>,
-    pub is_authenticated: bool
+    pub version: String,
 }

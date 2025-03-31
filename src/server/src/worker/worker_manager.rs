@@ -1,9 +1,7 @@
-use crate::models::config::Config;
 use actix_ws::{AggregatedMessageStream, Session};
 use common::models::{PackageJob, WorkerStatus};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 use crate::worker::worker::Worker;
 
@@ -14,17 +12,15 @@ pub enum WorkerDispatchResult {
 }
 
 pub struct WorkerManager {
-    config: Arc<RwLock<Config>>,
     next_id: Arc<AtomicUsize>,
 
     workers: Vec<Worker>
 }
 
 impl WorkerManager {
-    pub fn new(config: Arc<RwLock<Config>>) -> Self
+    pub fn new() -> Self
     {
         WorkerManager {
-            config,
             next_id: Arc::new(AtomicUsize::new(0)),
 
             workers: Default::default(),
@@ -42,7 +38,6 @@ impl WorkerManager {
             id,
             session,
             stream,
-            self.config.read().await.api_key.clone()
         );
         self.workers.push(worker);
     }
@@ -75,7 +70,7 @@ impl WorkerManager {
 
     async fn get_next_free_worker(&mut self) -> Option<&mut Worker> {
         for worker in self.workers.iter_mut() {
-            if worker.get_status().await == WorkerStatus::STANDBY && worker.is_authenticated().await {
+            if worker.get_status().await == WorkerStatus::STANDBY {
                 return Some(worker);
             }
         }

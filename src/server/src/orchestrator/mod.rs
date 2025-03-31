@@ -73,7 +73,7 @@ impl Orchestrator {
         }
 
         Ok(Orchestrator {
-            worker_manager: WorkerManager::new(config.clone()),
+            worker_manager: WorkerManager::new(),
             webhook_manager: WebhookManager::from_config(config.clone()),
             repository: Repository::from_config(config.clone()).await?,
 
