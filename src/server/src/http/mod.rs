@@ -13,6 +13,7 @@ use actix_web::{web, App, HttpServer};
 use anyhow::Result;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
+use actix_files::Files;
 use actix_multipart::form::MultipartFormConfig;
 use tokio::sync::RwLock;
 
@@ -22,13 +23,14 @@ pub struct HttpState {
     pub config: Arc<RwLock<Config>>,
 }
 
-fn get_app(cfg: &mut ServiceConfig, state: HttpState, api_key: &String) {
+fn get_app(cfg: &mut ServiceConfig, state: HttpState, config: &Config) {
     cfg
         .app_data(web::Data::new(state.clone()))
         .app_data(MultipartFormConfig::default().total_limit(1024 * 1024 * 1024 * 10)) //10GB
+        .service(Files::new("/repo", config.serve_path.clone()).show_files_listing())
         .service(
         web::scope("")
-            .wrap(Auth::new(api_key.clone()))
+            .wrap(Auth::new(config.api_key.clone()))
             .service(
                 web::scope("/api")
                     .service(workers::register())
@@ -45,9 +47,9 @@ pub async fn start_http(state: HttpState) -> Result<()> {
         state.config.read().await.port,
     );
 
-    let api_key = state.config.read().await.api_key.clone();
+    let config = state.config.read().await.clone();
 
-    HttpServer::new(move || App::new().configure(|cfg| get_app(cfg, state.clone(), &api_key)))
+    HttpServer::new(move || App::new().configure(|cfg| get_app(cfg, state.clone(), &config)))
         .bind(addr)?
         .run()
         .await?;
@@ -85,8 +87,8 @@ mod tests {
                 webhooks: vec![],
                 packages: vec![],
             };
-            let config = Arc::new(RwLock::new(config));
-            let mut orchestrator = Orchestrator::new(config.clone()).await.unwrap();
+            let mutexed_config = Arc::new(RwLock::new(config.clone()));
+            let mut orchestrator = Orchestrator::new(mutexed_config.clone()).await.unwrap();
 
             orchestrator
                 .get_package_store()
@@ -126,10 +128,10 @@ mod tests {
 
             let state = HttpState {
                 orchestrator: Arc::new(RwLock::new(orchestrator)),
-                config,
+                config: mutexed_config,
             };
             let app =
-                App::new().configure(|cfg| get_app(cfg, state.clone(), &"api_key".to_string()));
+                App::new().configure(|cfg| get_app(cfg, state.clone(), &config));
 
             (test::init_service(app).await, state)
         }};

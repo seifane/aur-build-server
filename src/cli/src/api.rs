@@ -29,20 +29,13 @@ impl Api {
 
     pub fn get_package_from_name(&self, package_name: &String) -> Result<PackageResponse>
     {
-        let mut found_packages = self.search_package(package_name)?;
-        if found_packages.len() > 1 {
-            return Err(
-                anyhow!(
-                    "Package {} is not clear, found: {}",
-                    package_name,
-                    found_packages.into_iter().map(|p| p.name).collect::<Vec<_>>().join(", ")
-                )
-            );
-        } else if found_packages.is_empty() {
-            return Err(anyhow!("Package {} not found", package_name));
-        }
+        let found_packages = self.search_package(package_name)?;
+        let package = found_packages.into_iter().find(|p| &p.name == package_name);
 
-        Ok(found_packages.remove(0))
+        if let Some(package) = package {
+            return Ok(package);
+        }
+        Err(anyhow!("Package {} not found", package_name))
     }
 
     pub fn search_package(&self, query: &String) -> Result<Vec<PackageResponse>>
