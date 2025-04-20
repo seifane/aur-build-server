@@ -1,3 +1,4 @@
+use std::fs::copy;
 use anyhow::{bail, Context, Result};
 use std::path::PathBuf;
 
@@ -111,11 +112,23 @@ impl Builder {
 
         if let Some(run_before) = self.package_job.definition.run_before.as_ref() {
             info!("Running run_before command '{}'", run_before);
-            let output = self.bubblewrap.run_sandbox_fakeroot("current", "/", "sh", vec!["-c", run_before.as_str()]).await
+            let output = self.bubblewrap.run_sandbox(true, "current", "/", "sh", vec!["-c", run_before.as_str()]).await
                 .with_context(|| format!("Failed to execute run_before for {}", package.package_base))?;
             write_log_section(&self.config.build_logs_path, &self.package_job.definition.name, LogSection::RunBeforeOut, output.stdout.as_slice()).await?;
             write_log_section(&self.config.build_logs_path, &self.package_job.definition.name, LogSection::RunBeforeErr, output.stderr.as_slice()).await?;
         }
+
+        if !package.repo_deps.is_empty() {
+            let mut pacman_args = vec!["-S".to_string(), "--noconfirm".to_string()];
+            pacman_args.append(&mut package.repo_deps.clone());
+
+            info!("Installing dependencies from repo {:?}", pacman_args);
+
+            for dep in &package.repo_deps {
+                self.bubblewrap.run_sandbox(true, "current", "/", "pacman", vec!["-S", "--noconfirm", dep.as_str()]).await?;
+            }
+        }
+
 
         let output = run_makepkg(&self.bubblewrap, &package.package_base).await
             .with_context(|| format!("Error while running makepkg for {}", &package.package_base))?;
@@ -172,7 +185,7 @@ impl Builder {
     }
 
     pub async fn try_process_package(&self) -> Result<PackageBuildResult> {
-        self.tx_status.send(WorkerStatus::INIT).await.unwrap();
+        self.tx_status.send(WorkerStatus::INIT).await?;
         let aur_package = self.stage_init().await?;
 
         info!("Checking package version");
@@ -248,8 +261,8 @@ mod tests {
         let config: Config = Config {
             log_level: LevelFilter::Debug,
             log_path: PathBuf::from("./test/worker.log"),
-            pacman_config_path: PathBuf::from("../../config/pacman.conf"),
-            pacman_mirrorlist_path: PathBuf::from("../../config/mirrorlist"),
+            pacman_config_path: PathBuf::from("/etc/pacman.conf"),
+            pacman_mirrorlist_path: PathBuf::from("/etc/pacman.d/mirrorlist"),
             force_base_sandbox_create: false,
             data_path: PathBuf::from("./test/data"),
             sandbox_path: PathBuf::from("./test/sandbox"),
@@ -273,7 +286,8 @@ mod tests {
             &config
         );
 
-        builder.try_process_package().await
+        let res = builder.try_process_package().await;
+        res
     }
 
     #[tokio::test]
@@ -283,7 +297,7 @@ mod tests {
         let job = PackageJob {
             definition: PackageDefinition {
                 package_id: 1,
-                name: "phpstorm".to_string(),
+                name: "pv-migrate".to_string(),
                 run_before: None,
                 patches: vec![],
             },
@@ -301,7 +315,7 @@ mod tests {
         let job = PackageJob {
             definition: PackageDefinition {
                 package_id: 1,
-                name: "flutter".to_string(),
+                name: "bottles".to_string(),
                 run_before: None,
                 patches: vec![],
             },

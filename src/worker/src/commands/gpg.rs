@@ -7,7 +7,7 @@ pub async fn attempt_recv_gpg_keys(bubblewrap: &Bubblewrap, data_path: &PathBuf,
     match get_src_info(data_path, package_name).await {
         Ok(src_info) => {
             for key in src_info.base.valid_pgp_keys.iter() {
-                let res = bubblewrap.run_sandbox("current", "/", "gpg", vec![
+                let res = bubblewrap.run_sandbox(true, "current", "/", "gpg", vec![
                     "--auto-key-locate",
                     "nodefault,wkd",
                     "--receive-keys",

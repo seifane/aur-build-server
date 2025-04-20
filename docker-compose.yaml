@@ -19,8 +19,10 @@ services:
 
   worker:
     image: aur-build-worker:local
-    security_opt:
-      - seccomp:./docker/seccomp.json
+#    security_opt:
+#      - seccomp:./docker/seccomp.json
+    cap_add:
+      - ALL
     build:
       context: .
       dockerfile: Dockerfile

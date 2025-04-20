@@ -6,7 +6,7 @@ use log::{debug, warn};
 use petgraph::Graph;
 use petgraph::graph::{EdgeIndex, NodeIndex};
 use serde::Deserialize;
-use srcinfo::{ArchVec, Srcinfo};
+use srcinfo::{Srcinfo};
 use crate::builder::bubblewrap::Bubblewrap;
 use crate::commands::git::clone_repo;
 use crate::commands::makepkg::get_src_info;
@@ -19,6 +19,7 @@ pub type DependencyGraph = Graph<AurPackage, ()>;
 pub struct AurPackage {
     pub package_name: String,
     pub package_base: String,
+    pub repo_deps: Vec<String>,
 }
 
 impl PartialEq<Self> for AurPackage {
@@ -50,13 +51,14 @@ async fn get_package_dependencies(
         bail!("Max depth was reached when getting dependencies");
     }
 
-    let node_weight = &dep_graph[node_index];
+    let node_weight = dep_graph.node_weight_mut(node_index).unwrap();
 
     if !data_path.join(&node_weight.package_base).exists() {
         clone_repo(&data_path, &node_weight.package_base)?;
     }
     let src_info = get_src_info(data_path, &node_weight.package_base).await?;
-    let aur_deps = extract_dependencies(bubblewrap, &src_info).await;
+    let (aur_deps, repo_deps) = extract_dependencies(bubblewrap, &src_info).await;
+    node_weight.repo_deps = repo_deps;
 
     for aur_dep in aur_deps {
         if let Some(found) = dep_graph.node_indices().find(|n| dep_graph[*n] == aur_dep) {
@@ -85,52 +87,57 @@ fn add_edge(dep_graph: &mut DependencyGraph, start: NodeIndex, end: NodeIndex) -
     }
 }
 
-async fn get_aur_dependencies(bubblewrap: &Bubblewrap, deps: &Vec<ArchVec>) -> Vec<String> {
+async fn get_aur_dependencies(bubblewrap: &Bubblewrap, deps: Vec<String>) -> (Vec<String>, Vec<String>) {
     let mut aur_dependency = Vec::new();
+    let mut repo_dependency = Vec::new();
 
-    for arch_vec in deps.iter() {
-        for d in arch_vec.vec.iter() {
-            let sanitized = sanitize_dependency(d.as_str());
-            if !is_package_in_repo(bubblewrap, &sanitized).await {
-                aur_dependency.push(sanitized);
-            }
+    for dep in deps.into_iter() {
+        if !is_package_in_repo(bubblewrap, &dep).await {
+            aur_dependency.push(dep);
+        } else {
+            repo_dependency.push(dep);
         }
     }
 
-    aur_dependency
+    (aur_dependency, repo_dependency)
 }
 
 async fn extract_dependencies(
     bubblewrap: &Bubblewrap,
     srcinfo: &Srcinfo,
-) -> Vec<AurPackage>
+) -> (Vec<AurPackage>, Vec<String>)
 {
     let mut dependencies = Vec::new();
 
     let mut packages = vec![srcinfo.base.pkgbase.clone()];
 
-    let mut make_dependencies = get_aur_dependencies(bubblewrap, &srcinfo.base.makedepends).await;
-    dependencies.append(&mut make_dependencies);
-    let mut check_dependencies = get_aur_dependencies(bubblewrap, &srcinfo.base.checkdepends).await;
-    dependencies.append(&mut check_dependencies);
+    dependencies.append(&mut srcinfo.base.makedepends.clone()
+        .into_iter()
+        .flat_map(|v| v.vec)
+        .collect());
+    dependencies.append(&mut srcinfo.base.checkdepends.clone()
+        .into_iter()
+        .flat_map(|v| v.vec)
+        .collect());
 
     for pkg in srcinfo.pkgs.iter() {
         packages.push(pkg.pkgname.clone());
 
-        let mut runtime_dependencies= get_aur_dependencies(bubblewrap, &pkg.depends).await;
-        dependencies.append(&mut runtime_dependencies);
+        dependencies.append(&mut pkg.depends.clone().into_iter().flat_map(|v| v.vec).collect());
     }
 
+    dependencies = dependencies.into_iter().map(|d| sanitize_dependency(d.as_str())).collect();
     dependencies.dedup();
-    dependencies.retain(|i| !packages.contains(i));
+    dependencies.retain(|d| !packages.contains(d));
 
-    let mut aur_dependency = future::join_all(dependencies.iter().map(|i| aur_api_query_provides(i))).await;
+    let (aur_dependencies, repo_dependencies) = get_aur_dependencies(bubblewrap, dependencies).await;
+
+    let mut aur_dependency = future::join_all(aur_dependencies.iter().map(|i| aur_api_query_provides(i))).await;
     aur_dependency.retain(|i| !packages.contains(&i.package_base));
-    aur_dependency.dedup();
 
     debug!("Found AUR dependencies for {} {:?}", srcinfo.base.pkgbase, aur_dependency);
 
-    aur_dependency
+    (aur_dependency, repo_dependencies)
 }
 
 #[derive(Deserialize)]
@@ -160,6 +167,7 @@ pub async fn aur_api_query_provides(package_name: &String) -> AurPackage
                     return AurPackage {
                         package_name: package_name.clone(),
                         package_base: result.package_base.clone(),
+                        repo_deps: Vec::new(),
                     }
                 }
             }
@@ -169,6 +177,7 @@ pub async fn aur_api_query_provides(package_name: &String) -> AurPackage
                 return AurPackage {
                     package_name: package_name.clone(),
                     package_base: parsed.results[0].package_base.clone(),
+                    repo_deps: Vec::new(),
                 };
             }
 
@@ -176,10 +185,11 @@ pub async fn aur_api_query_provides(package_name: &String) -> AurPackage
     }
 
     warn!("Could not find {} by provides, falling back to fetching by name", package_name);
-    return AurPackage {
+    AurPackage {
         package_name: package_name.clone(),
         package_base: package_name.clone(),
-    };
+        repo_deps: Vec::new(),
+    }
 }
 
 #[cfg(test)]
@@ -196,13 +206,13 @@ mod tests {
     fn get_config() -> Config {
         Config {
             log_level: LevelFilter::Debug,
-            log_path: PathBuf::from("./tests/worker.log"),
+            log_path: PathBuf::from("./test/worker.log"),
             pacman_config_path: PathBuf::from("../../config/pacman.conf"),
             pacman_mirrorlist_path: PathBuf::from("../../config/mirrorlist"),
             force_base_sandbox_create: false,
-            data_path: PathBuf::from("./tests/data"),
-            sandbox_path: PathBuf::from("./tests/sandbox"),
-            build_logs_path: PathBuf::from("./tests/build_logs"),
+            data_path: PathBuf::from("./test/data"),
+            sandbox_path: PathBuf::from("./test/sandbox"),
+            build_logs_path: PathBuf::from("./test/build_logs"),
             base_url: "".to_string(),
             base_url_ws: "".to_string(),
             api_key: "".to_string(),
@@ -211,7 +221,7 @@ mod tests {
 
     fn get_bubblewrap() -> Bubblewrap {
         Bubblewrap::new(
-            PathBuf::from("./tests/sandbox"),
+            PathBuf::from("./test/sandbox"),
             PathBuf::from("../../config/pacman.conf"),
             PathBuf::from("../../config/mirrorlist")
         )
@@ -226,10 +236,11 @@ mod tests {
 
         let graph = build_dependency_graph(
             &bubblewrap,
-            &PathBuf::from("./tests/sandbox"),
+            &PathBuf::from("./test/sandbox"),
             AurPackage {
                 package_name: "bottles".to_string(),
                 package_base: "bottles".to_string(),
+                repo_deps: Vec::new(),
             },
         ).await.unwrap();
         println!("{:#?}", graph);
@@ -247,9 +258,9 @@ mod tests {
             format!("vkbasalt-cli"),
             format!("python-steamgriddb"),
             format!("python-pathvalidate"),
+            format!("python-fvs"),
             format!("patool"),
             format!("icoextract"),
-            format!("fvs"),
         ]);
 
         println!("first_level_deps {:?}", first_level_deps);

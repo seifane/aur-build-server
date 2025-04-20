@@ -4,7 +4,7 @@ use crate::builder::bubblewrap::Bubblewrap;
 
 pub async fn pacman_update_repos(bubblewrap: &Bubblewrap) -> Result<()>
 {
-    let output = bubblewrap.run_sandbox_fakeroot("base", "/", "pacman", vec![
+    let output = bubblewrap.run_sandbox(true,"base", "/", "pacman", vec![
         "-Syy"
     ]).await?;
 
@@ -21,9 +21,9 @@ pub async fn pacman_update_repos(bubblewrap: &Bubblewrap) -> Result<()>
 }
 
 pub async fn is_package_in_repo(bubblewrap: &Bubblewrap, package_name: &String) -> bool {
-    let output = bubblewrap.run_sandbox("base", "/", "pacman", vec![
+    let output = bubblewrap.run_sandbox(true,"base", "/", "pacman", vec![
         "-Ss",
-        format!("{}", package_name).as_str(),
+        format!("^{}$", package_name).as_str(),
     ]).await;
 
     if output.is_err() {

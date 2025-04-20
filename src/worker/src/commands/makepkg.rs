@@ -24,9 +24,8 @@ pub async fn run_makepkg(bubblewrap: &Bubblewrap, package_name: &String) -> Resu
 {
     info!("Running makepkg for {}", package_name);
 
-    let output = bubblewrap.run_sandbox("current", "/package", "makepkg", vec![
+    let output = bubblewrap.run_sandbox(false, "current", "/package", "makepkg", vec![
         "--clean",
-        "--syncdeps",
         "--noconfirm",
     ]).await?;
     Ok(output)
