@@ -57,7 +57,10 @@ async fn get_package_dependencies(
         clone_repo(&data_path, &node_weight.package_base)?;
     }
     let src_info = get_src_info(data_path, &node_weight.package_base).await?;
+    debug!("Got src info: {:#?}", src_info);
     let (aur_deps, repo_deps) = extract_dependencies(bubblewrap, &src_info).await;
+    debug!("Got aur deps: {:#?}", aur_deps);
+    debug!("Got repo deps: {:#?}", repo_deps);
     node_weight.repo_deps = repo_deps;
 
     for aur_dep in aur_deps {

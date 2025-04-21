@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 use std::path::PathBuf;
 
-use log::{error, info};
+use log::{error, info, warn};
 use petgraph::Direction;
 use tokio::sync::mpsc::Sender;
 
@@ -14,7 +14,8 @@ use crate::commands::git::{apply_patches, clone_repo};
 use crate::commands::gpg::attempt_recv_gpg_keys;
 use crate::commands::makepkg::{get_package_version, run_makepkg};
 use crate::commands::pacman::{pacman_update_repos};
-use crate::logs::{init_builder_logs, LogSection, write_log_section};
+use crate::logs::{init_builder_logs};
+use crate::logs::LogSection::RunBefore;
 use crate::models::config::Config;
 use crate::models::package_build_result::PackageBuildResult;
 use crate::orchestrator::http::HttpClient;
@@ -98,6 +99,8 @@ impl Builder {
         &self,
         package: &AurPackage,
     ) -> Result<()> {
+        let log_path = self.config.build_logs_path.join(format!("{}.log", self.package_job.definition.name));
+
         info!("Building package {}", package.package_base);
 
         let root = self.init_build_chroot().await.with_context(|| "Failed to init build chroot")?;
@@ -111,10 +114,19 @@ impl Builder {
 
         if let Some(run_before) = self.package_job.definition.run_before.as_ref() {
             info!("Running run_before command '{}'", run_before);
-            let output = self.bubblewrap.run_sandbox(true, "current", "/", "sh", vec!["-c", run_before.as_str()]).await
+            let output = self.bubblewrap.run_sandbox(
+                true,
+                "current",
+                "/",
+                "sh",
+                vec!["-c", run_before.as_str()],
+                Some(&log_path),
+                Some(RunBefore)
+            ).await
                 .with_context(|| format!("Failed to execute run_before for {}", package.package_base))?;
-            write_log_section(&self.config.build_logs_path, &self.package_job.definition.name, LogSection::RunBeforeOut, output.stdout.as_slice()).await?;
-            write_log_section(&self.config.build_logs_path, &self.package_job.definition.name, LogSection::RunBeforeErr, output.stderr.as_slice()).await?;
+            if !output.status.success() {
+                warn!("run_before '{}' failed for {} with status code {:?}, check logs for details", run_before, package.package_base, output.status.code());
+            }
         }
 
         if !package.repo_deps.is_empty() {
@@ -124,15 +136,17 @@ impl Builder {
             info!("Installing dependencies from repo {:?}", pacman_args);
 
             for dep in &package.repo_deps {
-                self.bubblewrap.run_sandbox(true, "current", "/", "pacman", vec!["-S", "--noconfirm", dep.as_str()]).await?;
+                self.bubblewrap.run_sandbox(true, "current", "/", "pacman", vec!["-S", "--noconfirm", dep.as_str()], None, None).await?;
             }
         }
 
 
-        let output = run_makepkg(&self.bubblewrap, &package.package_base).await
+        let output = run_makepkg(
+            &self.bubblewrap,
+            &package.package_base,
+            &log_path
+        ).await
             .with_context(|| format!("Error while running makepkg for {}", &package.package_base))?;
-        write_log_section(&self.config.build_logs_path, &self.package_job.definition.name, LogSection::MakePkgOut(package.package_base.clone()), output.stdout.as_slice()).await?;
-        write_log_section(&self.config.build_logs_path, &self.package_job.definition.name, LogSection::MakePkgErr(package.package_base.clone()), output.stderr.as_slice()).await?;
 
         if !output.status.success() {
             bail!("Failed to run makepkg for {}", package.package_base);
@@ -177,7 +191,9 @@ impl Builder {
         let mut dep_graph = build_dependency_graph(&self.bubblewrap, &self.config.data_path, aur_package).await
             .with_context(|| "Failed to build dependency graph")?;
 
+        info!("Handling dependencies");
         self.handle_dependencies(&mut dep_graph).await?;
+        info!("Handling package");
         self.handle_package(&mut dep_graph).await?;
 
         Ok(())

@@ -6,14 +6,9 @@ pub async fn pacman_update_repos(bubblewrap: &Bubblewrap) -> Result<()>
 {
     let output = bubblewrap.run_sandbox(true,"base", "/", "pacman", vec![
         "-Syy"
-    ]).await?;
+    ], None, None).await?;
 
     if !output.status.success() {
-        error!(
-                "Error while updating repos, continuing without update ...\n---stdout---\n{:?}\n---stderr---\n{:?}",
-                String::from_utf8(output.stdout),
-                String::from_utf8(output.stderr)
-            );
         bail!("Failed to update pacman repos with code {:?}", output.status.code());
     }
 
@@ -24,7 +19,7 @@ pub async fn is_package_in_repo(bubblewrap: &Bubblewrap, package_name: &String) 
     let output = bubblewrap.run_sandbox(true,"base", "/", "pacman", vec![
         "-Ss",
         format!("^{}$", package_name).as_str(),
-    ]).await;
+    ], None, None).await;
 
     if output.is_err() {
         warn!("Could not check pacman for {}, {}", package_name, output.unwrap_err());

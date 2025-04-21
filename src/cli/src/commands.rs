@@ -15,6 +15,7 @@ macro_rules! try_get_package_from_name {
         match $api.get_package_from_name($package) {
             Ok(res) => res,
             Err(e) => {
+                eprintln!("Failed to get package from name: {}", e);
                 return;
             }
         }

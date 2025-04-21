@@ -5,6 +5,7 @@ use log::{info};
 use srcinfo::Srcinfo;
 use tokio::process::Command;
 use crate::builder::bubblewrap::Bubblewrap;
+use crate::logs::LogSection;
 
 pub async fn get_src_info(data_path: &PathBuf, package_name: &String) -> Result<Srcinfo>
 {
@@ -20,14 +21,22 @@ pub async fn get_src_info(data_path: &PathBuf, package_name: &String) -> Result<
     )
 }
 
-pub async fn run_makepkg(bubblewrap: &Bubblewrap, package_name: &String) -> Result<Output>
+pub async fn run_makepkg(bubblewrap: &Bubblewrap, package_name: &String, log_path: &PathBuf) -> Result<Output>
 {
     info!("Running makepkg for {}", package_name);
 
-    let output = bubblewrap.run_sandbox(false, "current", "/package", "makepkg", vec![
-        "--clean",
-        "--noconfirm",
-    ]).await?;
+    let output = bubblewrap.run_sandbox(
+        false,
+        "current",
+        "/package",
+        "makepkg",
+        vec![
+            "--clean",
+            "--noconfirm",
+        ],
+        Some(&log_path),
+        Some(LogSection::MakePkg(package_name.to_string()))
+    ).await?;
     Ok(output)
 }
 

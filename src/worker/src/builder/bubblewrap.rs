@@ -1,9 +1,11 @@
-use anyhow::{Result};
-use std::path::PathBuf;
+use anyhow::{anyhow, Result};
+use std::path::{PathBuf};
 use std::process::{Output};
 use log::{debug, error, info};
 use tokio::fs::{create_dir_all, remove_dir_all};
 use tokio::process::Command;
+use crate::builder::utils::run_command;
+use crate::logs::LogSection;
 use crate::models::config::Config;
 use crate::utils::{copy_dir, get_package_dir_entries, set_recursive_permissions};
 
@@ -73,68 +75,35 @@ impl Bubblewrap {
         debug!("Copying locale.gen");
         tokio::fs::copy("/etc/locale.gen", &self.sandbox_path.join("base/etc/locale.gen")).await?;
 
-        let res = Command::new("fakechroot")
-            .args(vec![
-                "fakeroot",
-                "pacman",
-                "-Syu",
-                "--noconfirm",
-                "--root", &self.sandbox_path.join("base/").canonicalize()?.to_str().unwrap(),
-                "--dbpath", &self.sandbox_path.join("base/var/lib/pacman").canonicalize()?.to_str().unwrap(),
-                "--config", &self.sandbox_path.join("base/etc/pacman.conf").canonicalize()?.to_str().unwrap(),
-                "base", "fakeroot", "base-devel"
-            ])
-            .output().await?;
+        let mut command = Command::new("fakechroot");
+        command.args(vec![
+            "fakeroot",
+            "pacman",
+            "-Syu",
+            "--noconfirm",
+            "--root", &self.sandbox_path.join("base/").canonicalize()?.to_str().unwrap(),
+            "--dbpath", &self.sandbox_path.join("base/var/lib/pacman").canonicalize()?.to_str().unwrap(),
+            "--config", &self.sandbox_path.join("base/etc/pacman.conf").canonicalize()?.to_str().unwrap(),
+            "base", "fakeroot", "base-devel"
+        ]);
 
-        debug!(
-            "pacman init command command output: {:?}, stdout: {:?}, stderr: {:?}",
-            res.status.code(),
-            String::from_utf8(res.stdout.clone()),
-            String::from_utf8(res.stderr.clone())
-        );
+        let res = run_command(
+            command,
+            None,
+            None
+        )?.wait_with_output().await?;
 
-        self.run_sandbox(true, "base", "/", "locale-gen", vec![]).await?;
-        self.run_sandbox(true, "base", "/", "pacman-key", vec!["--init"]).await?;
-        self.run_sandbox(true, "base", "/", "pacman-key", vec!["--populate"]).await?;
+        debug!("pacman init command command output: {:?} ",res.status.code());
 
-        // let (mut reader, writer) = os_pipe::pipe()?;
-        //
-        // let res = Command::new("pacstrap")
-        //     .arg("-N")
-        //     .arg(&self.sandbox_path.join("base").canonicalize()?)
-        //     .arg("base")
-        //     .arg("base-devel")
-        //     .stderr(writer.try_clone()?)
-        //     .stdout(writer)
-        //     .spawn()?;
-        //
-        // tokio::task::spawn(async move {
-        //     let mut buffer = [0u8; 1024];
-        //     loop {
-        //         match reader.read(&mut buffer) {
-        //             Ok(0) => break,
-        //             Ok(n) => {
-        //               debug!("{}", String::from_utf8_lossy(&buffer[..n]));
-        //             }
-        //             Err(e) => {
-        //                 error!("{}", e);
-        //                 break;
-        //             }
-        //         }
-        //     }
-        // });
-        //
-        // let res = res.wait_with_output().await?;
-        // if !res.status.success() {
-        //     bail!("Failed to create base sandbox");
-        // }
-        //
-        // tokio::fs::remove_file(
-        //     self.sandbox_path.join("base")
-        //         .join("usr")
-        //         .join("lib")
-        //         .join("dbus-daemon-launch-helper")
-        // ).await?;
+        if !res.status.success() {
+            error!("Failed to build sandbox environment with error code: {:?}, \
+            check logs with debug level for more information", res.status.code());
+            return Err(anyhow!("Failed to build sandbox environment"));
+        }
+
+        self.run_sandbox(true, "base", "/", "locale-gen", vec![], None, None).await?;
+        self.run_sandbox(true, "base", "/", "pacman-key", vec!["--init"], None, None).await?;
+        self.run_sandbox(true, "base", "/", "pacman-key", vec!["--populate"], None, None).await?;
 
         Ok(())
     }
@@ -155,7 +124,9 @@ impl Bubblewrap {
         env: &str,
         chdir: &str,
         program: &str,
-        mut program_args: Vec<&str>
+        mut program_args: Vec<&str>,
+        log_path: Option<&PathBuf>,
+        log_section: Option<LogSection>
     ) -> Result<Output>
     {
         let as_user = if as_root {
@@ -182,19 +153,20 @@ impl Bubblewrap {
         args.push(program);
         args.append(&mut program_args);
 
+        let mut command = Command::new("unshare");
+        command.env("FAKEROOTDONTTRYCHOWN", "true")
+            .args(&args);
 
-        let res = Command::new("unshare")
-            .env("FAKEROOTDONTTRYCHOWN", "true")
-            .args(&args)
-            .output().await?;
 
+        let res = run_command(command,
+            log_path,
+            log_section
+        )?.wait_with_output().await?;
 
         debug!(
-            "unshare command {:?} output: {:?}, stdout: {:?}, stderr: {:?}",
+            "sandbox command {:?} code: {:?}",
             args,
             res.status.code(),
-            String::from_utf8(res.stdout.clone()),
-            String::from_utf8(res.stderr.clone())
         );
         Ok(res)
     }
@@ -216,7 +188,7 @@ impl Bubblewrap {
                     "--noconfirm",
                     "-U",
                     file_name.to_str().unwrap(),
-                ]).await?;
+                ], None, None).await?;
                 debug!("Dependency install output code {:?}\nstdout:\n{}stderr:\n{}", out.status.code(), String::from_utf8(out.stdout.as_slice().to_vec()).unwrap(), String::from_utf8(out.stderr.as_slice().to_vec()).unwrap());
             }
         }

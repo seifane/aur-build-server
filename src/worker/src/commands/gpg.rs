@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use log::{debug, info, warn};
+use log::{info, warn};
 use crate::builder::bubblewrap::Bubblewrap;
 use crate::commands::makepkg::get_src_info;
 
@@ -12,23 +12,13 @@ pub async fn attempt_recv_gpg_keys(bubblewrap: &Bubblewrap, data_path: &PathBuf,
                     "nodefault,wkd",
                     "--receive-keys",
                     key.as_str(),
-                ]).await;
+                ], None, None).await;
                 match res {
                     Ok(output) => {
                         if output.status.success() {
                             info!("Successfully received gpg key {}", key);
-                            debug!("GPG status code: {:?}\nstdout:\n{}stderr:\n{}",
-                                output.status.code(),
-                                String::from_utf8(output.stdout.as_slice().to_vec()).unwrap_or("Conv fail".to_string()),
-                                String::from_utf8(output.stderr.as_slice().to_vec()).unwrap_or("Conv fail".to_string())
-                            );
                         } else {
-                            warn!("Failed to receive gpg key {}: status code: {:?}\nstdout:\n{}stderr:\n{}",
-                                    key,
-                                    output.status.code(),
-                                    String::from_utf8(output.stdout.as_slice().to_vec()).unwrap_or("Conv fail".to_string()),
-                                    String::from_utf8(output.stderr.as_slice().to_vec()).unwrap_or("Conv fail".to_string()),
-                                );
+                            warn!("Failed to receive gpg key {}: status code: {:?}", key, output.status.code());
                         }
                     }
                     Err(e) => {
