@@ -25,10 +25,10 @@ pub struct SharedConfig {
     #[clap(long, value_hint = clap::ValueHint::DirPath)]
     pub log_path: Option<PathBuf>,
 
-    /// Path to the pacman configuration to use. Default: './config/pacman.conf'
+    /// Path to the pacman configuration to use. Default: '/etc/pacman.conf'
     #[clap(short, long, value_hint = clap::ValueHint::DirPath)]
     pub pacman_config_path: Option<PathBuf>,
-    /// Path to the pacman mirrorlist to use. Default: './config/mirrorlist'
+    /// Path to the pacman mirrorlist to use. Default: '/etc/pacman.d/mirrorlist'
     #[clap(short = 'm', long, value_hint = clap::ValueHint::DirPath)]
     pub pacman_mirrorlist_path: Option<PathBuf>,
 
@@ -96,8 +96,8 @@ impl Config {
             log_level: cli_config.log_level.unwrap_or(LevelFilter::Info),
             log_path: cli_config.log_path.unwrap_or(file_config.log_path.unwrap_or(PathBuf::from("./aur-build-worker.log"))),
 
-            pacman_config_path: cli_config.pacman_config_path.unwrap_or(file_config.pacman_config_path.unwrap_or(PathBuf::from("./config/pacman.conf"))),
-            pacman_mirrorlist_path: cli_config.pacman_mirrorlist_path.unwrap_or(file_config.pacman_mirrorlist_path.unwrap_or(PathBuf::from("./config/mirrorlist"))),
+            pacman_config_path: cli_config.pacman_config_path.unwrap_or(file_config.pacman_config_path.unwrap_or(PathBuf::from("/etc/pacman.conf"))),
+            pacman_mirrorlist_path: cli_config.pacman_mirrorlist_path.unwrap_or(file_config.pacman_mirrorlist_path.unwrap_or(PathBuf::from("/etc/pacman.d/mirrorlist"))),
 
             data_path: cli_config.data_path.unwrap_or(file_config.data_path.unwrap_or(PathBuf::from("./worker/data"))),
             sandbox_path: cli_config.sandbox_path.unwrap_or(file_config.sandbox_path.unwrap_or(PathBuf::from("./worker/sandbox"))),

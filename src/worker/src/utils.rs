@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use async_recursion::async_recursion;
 use log::{error};
@@ -68,19 +67,6 @@ pub async fn copy_dir(src: PathBuf, dst: PathBuf) -> Result<()>
         error!("Failed to copy directory {:?} {:?}", String::from_utf8(out.stdout), String::from_utf8(out.stderr));
         bail!("Failed to cp, with status code {:?}", out.status.code());
     }
-    Ok(())
-}
-
-pub async fn set_recursive_permissions<P: AsRef<Path> + Send + Copy + Debug>(path: P, mode: &str) -> Result<()> {
-    let res = Command::new("chmod")
-        .arg(mode)
-        .arg("-R")
-        .arg(path.as_ref().canonicalize()?.to_str().unwrap())
-        .output().await?;
-    if !res.status.success() {
-        bail!("chmod failed with status code {:?}", res.status.code());
-    }
-
     Ok(())
 }
 

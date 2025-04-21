@@ -3,6 +3,7 @@
 ## Setup
 
 Make sure you have installed the dependencies given in the main [readme](../README.md).
+You should not be running the server or the workers as root.
 
 Make sure your configuration files are created. If not you can run the following command to get the basic configuration created.
 The sample config files are targeting docker by default so you will need to adjust `base_url` and `base_url_ws` to point to your server. Most likely this will be `http://localhost:8888` and `ws://localhost:8888` respectively.

@@ -73,14 +73,14 @@ pub enum PackageCommands {
         name: String,
     },
 
-    /// Create a new package
-    Create {
+    /// Add a new package
+    Add {
         name: Option<String>,
         run_before: Option<String>
     },
 
-    /// Delete a package
-    Delete {
+    /// Remove a package
+    Remove {
         name: String
     },
 
@@ -99,15 +99,15 @@ pub enum PatchCommands {
         package_name: String,
     },
 
-    /// Create a new patch for a package
-    Create {
+    /// Add a new patch for a package
+    Add {
         package_name: String,
         url: String,
         sha_512: Option<String>,
     },
 
-    /// Delete a patch for a package
-    Delete {
+    /// Remove a patch for a package
+    Remove {
         package_name: String,
         id: i32
     }

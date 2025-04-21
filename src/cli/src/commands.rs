@@ -165,6 +165,7 @@ pub fn packages_create(api: &Api, name: &Option<String>, run_before: &Option<Str
                 .unwrap();
             let run_before: String = Input::with_theme(&ColorfulTheme::default())
                 .with_prompt("Run before command")
+                .allow_empty(true)
                 .interact_text()
                 .unwrap();
             let run_before = if run_before.is_empty() {

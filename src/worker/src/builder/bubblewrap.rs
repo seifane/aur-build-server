@@ -1,13 +1,13 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use std::path::{PathBuf};
 use std::process::{Output};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use tokio::fs::{create_dir_all, remove_dir_all};
 use tokio::process::Command;
 use crate::builder::utils::run_command;
 use crate::logs::LogSection;
 use crate::models::config::Config;
-use crate::utils::{copy_dir, get_package_dir_entries, set_recursive_permissions};
+use crate::utils::{copy_dir, get_package_dir_entries};
 
 pub struct Bubblewrap {
     sandbox_path: PathBuf,
@@ -44,8 +44,12 @@ impl Bubblewrap {
         let path = self.sandbox_path.join(name);
         if path.exists() {
             info!("Deleting {}", name);
-            set_recursive_permissions(&path, "777").await?;
-            remove_dir_all(&path).await?;
+            let out = Command::new("unshare")
+                .args(vec!["--map-auto", "-r", "--", "rm", "-rf", path.canonicalize()?.to_str().ok_or(anyhow!("Failed to canonicalize path"))?])
+                .output().await?;
+            if !out.status.success() {
+                bail!("Failed to delete sandbox {} with code {:?}", name, out.status.code());
+            }
         }
         Ok(())
     }
@@ -183,13 +187,15 @@ impl Bubblewrap {
             for i in packages.iter() {
                 let file_name = i.file_name().unwrap();
                 tokio::fs::copy(i, &dep_path.join(file_name)).await?;
-                debug!("Installing built dep {:?}", file_name);
+                debug!("Installing built dependency {:?}", file_name);
                 let out = self.run_sandbox(true, name, "/dependencies", "pacman", vec![
                     "--noconfirm",
                     "-U",
                     file_name.to_str().unwrap(),
                 ], None, None).await?;
-                debug!("Dependency install output code {:?}\nstdout:\n{}stderr:\n{}", out.status.code(), String::from_utf8(out.stdout.as_slice().to_vec()).unwrap(), String::from_utf8(out.stderr.as_slice().to_vec()).unwrap());
+                if !out.status.success() {
+                    warn!("Failed to install dependency {:?} with status code {:?}", file_name, out.status.code());
+                }
             }
         }
 

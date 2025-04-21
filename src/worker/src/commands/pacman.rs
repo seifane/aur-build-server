@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use log::{error, warn};
+use log::warn;
 use crate::builder::bubblewrap::Bubblewrap;
 
 pub async fn pacman_update_repos(bubblewrap: &Bubblewrap) -> Result<()>

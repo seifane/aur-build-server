@@ -56,17 +56,17 @@ fn main() {
             match command {
                 PackageCommands::List { compact } => packages_list(&api, compact),
                 PackageCommands::Get { name} => packages_get(&api, name),
-                PackageCommands::Create { name, run_before} => packages_create(&api, name, run_before),
-                PackageCommands::Delete { name } => packages_delete(&api, name),
+                PackageCommands::Add { name, run_before} => packages_create(&api, name, run_before),
+                PackageCommands::Remove { name } => packages_delete(&api, name),
                 PackageCommands::Rebuild { packages, force } => packages_rebuild(&api, packages.clone(), *force),
             }
         }
         Commands::Patches { command } => {
             match command {
                 PatchCommands::List { package_name } => patches_list(&api, package_name),
-                PatchCommands::Create { package_name, url, sha_512 } =>
+                PatchCommands::Add { package_name, url, sha_512 } =>
                     patches_create(&api, package_name, url, sha_512),
-                PatchCommands::Delete { package_name, id } =>
+                PatchCommands::Remove { package_name, id } =>
                     patches_delete(&api, package_name, *id)
             }
         }
