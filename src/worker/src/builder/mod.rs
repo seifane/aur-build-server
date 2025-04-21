@@ -1,4 +1,3 @@
-use std::fs::copy;
 use anyhow::{bail, Context, Result};
 use std::path::PathBuf;
 
@@ -261,7 +260,7 @@ mod tests {
         let config: Config = Config {
             log_level: LevelFilter::Debug,
             log_path: PathBuf::from("./test/worker.log"),
-            pacman_config_path: PathBuf::from("/etc/pacman.conf"),
+            pacman_config_path: PathBuf::from("../../config/pacman.conf"),
             pacman_mirrorlist_path: PathBuf::from("/etc/pacman.d/mirrorlist"),
             force_base_sandbox_create: false,
             data_path: PathBuf::from("./test/data"),
@@ -287,6 +286,8 @@ mod tests {
         );
 
         let res = builder.try_process_package().await;
+        builder.bubblewrap.delete("base").await?;
+        builder.bubblewrap.delete("current").await?;
         res
     }
 

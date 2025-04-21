@@ -55,10 +55,6 @@ pub struct SharedConfig {
     /// Should the worker rebuild its sandbox from scratch at startup. Default 'false'
     #[clap(short = 'f', long)]
     pub force_base_sandbox_create: Option<bool>,
-
-    /// Used for debugging, builds the given AUR package and then exits, available only through CLI args.
-    #[clap(long)]
-    pub package_build: Option<String>
 }
 
 impl SharedConfig {
@@ -87,7 +83,6 @@ pub struct Config {
     pub api_key: String,
 
     pub force_base_sandbox_create: bool,
-    // pub package_build: Option<String>
 }
 
 impl Config {
@@ -113,7 +108,6 @@ impl Config {
             api_key: cli_config.api_key.unwrap_or(file_config.api_key.unwrap()),
 
             force_base_sandbox_create: cli_config.force_base_sandbox_create.unwrap_or(file_config.force_base_sandbox_create.unwrap_or(false)),
-            // package_build: cli_config.package_build
         };
 
         Ok(config)

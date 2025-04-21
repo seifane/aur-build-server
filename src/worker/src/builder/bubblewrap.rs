@@ -1,15 +1,11 @@
-use std::io::Read;
-use std::os::fd::AsRawFd;
-use anyhow::{bail, Result};
+use anyhow::{Result};
 use std::path::PathBuf;
 use std::process::{Output};
 use log::{debug, error, info};
 use tokio::fs::{create_dir_all, remove_dir_all};
-use tokio::io::BufReader;
 use tokio::process::Command;
 use crate::models::config::Config;
-use tokio::io::AsyncBufReadExt;
-use crate::utils::{copy_dir, copy_file_contents, get_package_dir_entries, set_recursive_permissions};
+use crate::utils::{copy_dir, get_package_dir_entries, set_recursive_permissions};
 
 pub struct Bubblewrap {
     sandbox_path: PathBuf,
@@ -77,58 +73,68 @@ impl Bubblewrap {
         debug!("Copying locale.gen");
         tokio::fs::copy("/etc/locale.gen", &self.sandbox_path.join("base/etc/locale.gen")).await?;
 
-        let out = Command::new("fakechroot")
+        let res = Command::new("fakechroot")
             .args(vec![
                 "fakeroot",
                 "pacman",
                 "-Syu",
                 "--noconfirm",
                 "--root", &self.sandbox_path.join("base/").canonicalize()?.to_str().unwrap(),
-                "--dbpath", &self.pacman_config_path.join("base/var/lib/pacman").canonicalize()?.to_str().unwrap()
-                "--config", &self.pacman_config_path.join("base/etc/pacman.conf").canonicalize()?.to_str().unwrap()
+                "--dbpath", &self.sandbox_path.join("base/var/lib/pacman").canonicalize()?.to_str().unwrap(),
+                "--config", &self.sandbox_path.join("base/etc/pacman.conf").canonicalize()?.to_str().unwrap(),
                 "base", "fakeroot", "base-devel"
             ])
             .output().await?;
 
+        debug!(
+            "pacman init command command output: {:?}, stdout: {:?}, stderr: {:?}",
+            res.status.code(),
+            String::from_utf8(res.stdout.clone()),
+            String::from_utf8(res.stderr.clone())
+        );
 
-        let (mut reader, writer) = os_pipe::pipe()?;
+        self.run_sandbox(true, "base", "/", "locale-gen", vec![]).await?;
+        self.run_sandbox(true, "base", "/", "pacman-key", vec!["--init"]).await?;
+        self.run_sandbox(true, "base", "/", "pacman-key", vec!["--populate"]).await?;
 
-        let res = Command::new("pacstrap")
-            .arg("-N")
-            .arg(&self.sandbox_path.join("base").canonicalize()?)
-            .arg("base")
-            .arg("base-devel")
-            .stderr(writer.try_clone()?)
-            .stdout(writer)
-            .spawn()?;
-
-        tokio::task::spawn(async move {
-            let mut buffer = [0u8; 1024];
-            loop {
-                match reader.read(&mut buffer) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                      debug!("{}", String::from_utf8_lossy(&buffer[..n]));
-                    }
-                    Err(e) => {
-                        error!("{}", e);
-                        break;
-                    }
-                }
-            }
-        });
-
-        let res = res.wait_with_output().await?;
-        if !res.status.success() {
-            bail!("Failed to create base sandbox");
-        }
-
-        tokio::fs::remove_file(
-            self.sandbox_path.join("base")
-                .join("usr")
-                .join("lib")
-                .join("dbus-daemon-launch-helper")
-        ).await?;
+        // let (mut reader, writer) = os_pipe::pipe()?;
+        //
+        // let res = Command::new("pacstrap")
+        //     .arg("-N")
+        //     .arg(&self.sandbox_path.join("base").canonicalize()?)
+        //     .arg("base")
+        //     .arg("base-devel")
+        //     .stderr(writer.try_clone()?)
+        //     .stdout(writer)
+        //     .spawn()?;
+        //
+        // tokio::task::spawn(async move {
+        //     let mut buffer = [0u8; 1024];
+        //     loop {
+        //         match reader.read(&mut buffer) {
+        //             Ok(0) => break,
+        //             Ok(n) => {
+        //               debug!("{}", String::from_utf8_lossy(&buffer[..n]));
+        //             }
+        //             Err(e) => {
+        //                 error!("{}", e);
+        //                 break;
+        //             }
+        //         }
+        //     }
+        // });
+        //
+        // let res = res.wait_with_output().await?;
+        // if !res.status.success() {
+        //     bail!("Failed to create base sandbox");
+        // }
+        //
+        // tokio::fs::remove_file(
+        //     self.sandbox_path.join("base")
+        //         .join("usr")
+        //         .join("lib")
+        //         .join("dbus-daemon-launch-helper")
+        // ).await?;
 
         Ok(())
     }

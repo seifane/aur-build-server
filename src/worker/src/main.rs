@@ -53,10 +53,6 @@ async fn main() {
     let bubblewrap = Bubblewrap::from_config(&config);
     bubblewrap.create(config.force_base_sandbox_create).await.unwrap();
 
-    // if let Some (package) = &config.package_build {
-    //
-    // }
-
     start(&config).await;
     info!("Worker terminated");
 }

@@ -13,7 +13,7 @@ services:
     ports:
       - "8888:8888"
     volumes:
-      - "./config_server.json:/app/config_server.json"
+      - "./config_server.json.bak:/app/config_server.json.bak"
       - "./server:/app/server"
       - "./key.asc:/app/key.asc" # Comment this line if you are not signing your packages
 

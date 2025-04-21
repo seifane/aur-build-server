@@ -72,17 +72,6 @@ pub async fn copy_dir(src: PathBuf, dst: PathBuf) -> Result<()>
     Ok(())
 }
 
-pub async fn copy_file_contents(src: &PathBuf, dest: &PathBuf) -> Result<()>
-{
-    debug!("Copy file content from {:?} to {:?}", src, dest);
-    let src_contents = read_to_string(src).await?;
-
-    let mut dest_file = File::create(dest).await?;
-    dest_file.write_all(src_contents.as_bytes()).await?;
-
-    Ok(())
-}
-
 pub async fn set_recursive_permissions<P: AsRef<Path> + Send + Copy + Debug>(path: P, mode: &str) -> Result<()> {
     let res = Command::new("chmod")
         .arg(mode)
