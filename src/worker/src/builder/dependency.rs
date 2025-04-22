@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Error, Result};
 use std::path::{PathBuf};
 use async_recursion::async_recursion;
 use futures_util::future;
@@ -57,8 +57,7 @@ async fn get_package_dependencies(
         clone_repo(&data_path, &node_weight.package_base)?;
     }
     let src_info = get_src_info(data_path, &node_weight.package_base).await?;
-    debug!("Got src info: {:#?}", src_info);
-    let (aur_deps, repo_deps) = extract_dependencies(bubblewrap, &src_info).await;
+    let (aur_deps, repo_deps) = extract_dependencies(bubblewrap, &src_info).await?;
     debug!("Got aur deps: {:#?}", aur_deps);
     debug!("Got repo deps: {:#?}", repo_deps);
     node_weight.repo_deps = repo_deps;
@@ -90,7 +89,7 @@ fn add_edge(dep_graph: &mut DependencyGraph, start: NodeIndex, end: NodeIndex) -
     }
 }
 
-async fn get_aur_dependencies(bubblewrap: &Bubblewrap, deps: Vec<String>) -> (Vec<String>, Vec<String>) {
+async fn split_aur_dependencies(bubblewrap: &Bubblewrap, deps: Vec<String>) -> (Vec<String>, Vec<String>) {
     let mut aur_dependency = Vec::new();
     let mut repo_dependency = Vec::new();
 
@@ -108,7 +107,7 @@ async fn get_aur_dependencies(bubblewrap: &Bubblewrap, deps: Vec<String>) -> (Ve
 async fn extract_dependencies(
     bubblewrap: &Bubblewrap,
     srcinfo: &Srcinfo,
-) -> (Vec<AurPackage>, Vec<String>)
+) -> Result<(Vec<AurPackage>, Vec<String>)>
 {
     let mut dependencies = Vec::new();
 
@@ -129,21 +128,25 @@ async fn extract_dependencies(
         dependencies.append(&mut pkg.depends.clone().into_iter().flat_map(|v| v.vec).collect());
     }
 
-    dependencies = dependencies.into_iter().map(|d| sanitize_dependency(d.as_str())).collect();
     dependencies.dedup();
     dependencies.retain(|d| !packages.contains(d));
 
-    let (aur_dependencies, repo_dependencies) = get_aur_dependencies(bubblewrap, dependencies).await;
+    let (aur_dependencies, repo_dependencies) = split_aur_dependencies(bubblewrap, dependencies).await;
 
-    let mut aur_dependency = future::join_all(aur_dependencies.iter().map(|i| aur_api_query_provides(i))).await;
-    aur_dependency.retain(|i| !packages.contains(&i.package_base));
+    let mut aur_packages: Result<Vec<AurPackage>, Error> = future::join_all(
+        aur_dependencies.iter().map(|i| async move {
+            aur_api_query_provides(i, false).await.ok_or(anyhow!("Failed to get aur dependency {} by provide", i))
+        })
+    ).await.into_iter().collect();
+    let mut aur_packages = aur_packages?;
+    aur_packages.retain(|i| !packages.contains(&i.package_base));
 
-    debug!("Found AUR dependencies for {} {:?}", srcinfo.base.pkgbase, aur_dependency);
+    debug!("Found AUR dependencies for {} {:?}", srcinfo.base.pkgbase, aur_packages);
 
-    (aur_dependency, repo_dependencies)
+    Ok((aur_packages, repo_dependencies))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct AurResult {
     #[serde(rename = "Name")]
     pub name: String,
@@ -151,48 +154,49 @@ struct AurResult {
     pub package_base: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct AurResults {
     pub results: Vec<AurResult>
 }
 
-pub async fn aur_api_query_provides(package_name: &String) -> AurPackage
+pub async fn aur_api_query_provides(package_name: &String, strict: bool) -> Option<AurPackage>
 {
-    let body = reqwest::get(format!(
-        "https://aur.archlinux.org/rpc/v5/search/{}?by=provides", package_name
-    )).await;
+    let sanitized_package_name = sanitize_dependency(package_name);
+    let url = format!(
+        "https://aur.archlinux.org/rpc/v5/search/{}?by=provides",
+        sanitized_package_name
+    );
+
+    let body = reqwest::get(url).await;
+
+    debug!("{} response {:?}", package_name, body);
 
     if let Ok(response) = body {
         let parsed: Result<AurResults, reqwest::Error> = response.json().await;
+        debug!("{} aur_api_query_provides {:?}", package_name, parsed);
         if let Ok(parsed) = parsed {
             for result in parsed.results.iter() {
-                if &result.name == package_name {
-                    return AurPackage {
-                        package_name: package_name.clone(),
+                if result.name == sanitized_package_name {
+                    return Some(AurPackage {
+                        package_name: sanitized_package_name,
                         package_base: result.package_base.clone(),
                         repo_deps: Vec::new(),
-                    }
+                    })
                 }
             }
 
-            if !parsed.results.is_empty() {
-                warn!("Did not find exact name match for {}, falling back to picking first option", package_name);
-                return AurPackage {
-                    package_name: package_name.clone(),
+            if !strict && !parsed.results.is_empty() {
+                return Some(AurPackage {
+                    package_name: parsed.results[0].name.clone(),
                     package_base: parsed.results[0].package_base.clone(),
                     repo_deps: Vec::new(),
-                };
+                })
             }
-
         }
     }
 
-    warn!("Could not find {} by provides, falling back to fetching by name", package_name);
-    AurPackage {
-        package_name: package_name.clone(),
-        package_base: package_name.clone(),
-        repo_deps: Vec::new(),
-    }
+    warn!("Could not find package {} in query provides", package_name);
+    None
 }
 
 #[cfg(test)]

@@ -71,6 +71,7 @@ impl Bubblewrap {
         create_dir_all(&self.sandbox_path.join("base/etc")).await?;
         create_dir_all(&self.sandbox_path.join("base/var/lib/pacman")).await?;
         create_dir_all(&self.sandbox_path.join("base/etc/pacman.d")).await?;
+        create_dir_all(&self.sandbox_path.join("base/home/app")).await?;
 
         debug!("Copying pacman.conf");
         tokio::fs::copy(&self.pacman_config_path, &self.sandbox_path.join("base/etc/pacman.conf")).await?;
@@ -158,9 +159,14 @@ impl Bubblewrap {
         args.append(&mut program_args);
 
         let mut command = Command::new("unshare");
-        command.env("FAKEROOTDONTTRYCHOWN", "true")
+        command
+            .env_clear()
+            .env("FAKEROOTDONTTRYCHOWN", "true")
+            .env("HOME", "/home/app")
+            .env("_JAVA_OPTIONS", "-Duser.home=/home/app")
+            .env("USER", "app")
+            .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
             .args(&args);
-
 
         let res = run_command(command,
             log_path,
@@ -184,18 +190,23 @@ impl Bubblewrap {
                 create_dir_all(&dep_path).await?;
             }
 
+            let mut args = vec![
+                "--noconfirm",
+                "-U",
+                "--ask",
+                "20"
+            ];
+
             for i in packages.iter() {
                 let file_name = i.file_name().unwrap();
                 tokio::fs::copy(i, &dep_path.join(file_name)).await?;
-                debug!("Installing built dependency {:?}", file_name);
-                let out = self.run_sandbox(true, name, "/dependencies", "pacman", vec![
-                    "--noconfirm",
-                    "-U",
-                    file_name.to_str().unwrap(),
-                ], None, None).await?;
-                if !out.status.success() {
-                    warn!("Failed to install dependency {:?} with status code {:?}", file_name, out.status.code());
-                }
+                args.push(file_name.to_str().unwrap());
+            }
+
+            debug!("Installing built dependencies with {:?}", args);
+            let out = self.run_sandbox(true, name, "/dependencies", "pacman", args, None, None).await?;
+            if !out.status.success() {
+                warn!("Failed to install dependencies with status code {:?}", out.status.code());
             }
         }
 

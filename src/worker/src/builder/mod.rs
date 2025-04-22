@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use std::path::PathBuf;
 
 use log::{error, info, warn};
@@ -50,8 +50,9 @@ impl Builder {
 
     async fn fetch_package(&self) -> Result<AurPackage>
     {
-        let parent_package = aur_api_query_provides(&self.package_job.definition.name).await;
-        let repository = clone_repo(&self.config.data_path, &parent_package.package_base)?;
+        let parent_package = aur_api_query_provides(&self.package_job.definition.name, true).await
+            .ok_or(anyhow!("Failed to get {} package by provide", &self.package_job.definition.name))?;
+        let repository = clone_repo(&self.config.data_path, &self.package_job.definition.name)?;
         apply_patches(&self.package_job, repository).await?;
         Ok(parent_package)
     }
@@ -130,16 +131,13 @@ impl Builder {
         }
 
         if !package.repo_deps.is_empty() {
-            let mut pacman_args = vec!["-S".to_string(), "--noconfirm".to_string()];
-            pacman_args.append(&mut package.repo_deps.clone());
+            let mut pacman_args = vec!["-S", "--noconfirm", "--ask", "20"];
+            pacman_args.append(&mut package.repo_deps.iter().map(|x| x.as_str()).collect());
 
             info!("Installing dependencies from repo {:?}", pacman_args);
 
-            for dep in &package.repo_deps {
-                self.bubblewrap.run_sandbox(true, "current", "/", "pacman", vec!["-S", "--noconfirm", dep.as_str()], None, None).await?;
-            }
+            self.bubblewrap.run_sandbox(true, "current", "/", "pacman", pacman_args, None, None).await?;
         }
-
 
         let output = run_makepkg(
             &self.bubblewrap,
@@ -302,8 +300,6 @@ mod tests {
         );
 
         let res = builder.try_process_package().await;
-        builder.bubblewrap.delete("base").await?;
-        builder.bubblewrap.delete("current").await?;
         res
     }
 
@@ -314,7 +310,7 @@ mod tests {
         let job = PackageJob {
             definition: PackageDefinition {
                 package_id: 1,
-                name: "pv-migrate".to_string(),
+                name: "headsetcontrol".to_string(),
                 run_before: None,
                 patches: vec![],
             },

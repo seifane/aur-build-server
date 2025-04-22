@@ -75,7 +75,7 @@ pub fn clone_repo(data_path: &PathBuf, repo_name: &String) -> Result<Repository>
         .with_context(|| format!("Failed to get commit for url {}", url))?;
     debug!("Cloned commit for {}: {}", url, cloned_commit);
 
-    return Ok(repository);
+    Ok(repository)
 }
 
 #[cfg(test)]
