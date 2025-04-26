@@ -43,16 +43,19 @@ fn main() {
     let args = Args::parse();
 
     let mut profile_config = ProfileConfig::from_file().expect("Unable to load profile config");
-    let api = get_api(&args, &profile_config);
 
     match &args.command {
         Commands::Workers { command} => {
+            let api = get_api(&args, &profile_config);
+
             match command {
                 WorkerCommands::List { .. } => workers_list(&api),
                 WorkerCommands::Evict { id } => workers_delete(&api, *id)
             }
         },
         Commands::Packages { command } => {
+            let api = get_api(&args, &profile_config);
+
             match command {
                 PackageCommands::List { compact } => packages_list(&api, compact),
                 PackageCommands::Get { name} => packages_get(&api, name),
@@ -62,6 +65,8 @@ fn main() {
             }
         }
         Commands::Patches { command } => {
+            let api = get_api(&args, &profile_config);
+
             match command {
                 PatchCommands::List { package_name } => patches_list(&api, package_name),
                 PatchCommands::Add { package_name, url, sha_512 } =>
@@ -70,11 +75,16 @@ fn main() {
                     patches_delete(&api, package_name, *id)
             }
         }
-        Commands::Logs { package} => logs_get(&api, package.clone()),
+        Commands::Logs { package} => {
+            let api = get_api(&args, &profile_config);
+            logs_get(&api, package.clone())
+        },
         Commands::Webhooks {command} => {
+            let api = get_api(&args, &profile_config);
+
             match command {
                 WebhookCommands::Trigger { } => {
-                    webhook_trigger_package_update(&get_api(&args, &profile_config));
+                    webhook_trigger_package_update(&api);
                 }
             }
         }
@@ -82,7 +92,6 @@ fn main() {
             match command {
                 ProfileCommands::List {} => profile_list(&profile_config),
                 ProfileCommands::Create {} => profile_create(&mut profile_config),
-                // ProfileCommands::Update { .. } => {}
                 ProfileCommands::Delete { name } => profile_delete(&mut profile_config, &name),
                 ProfileCommands::SetDefault { name } => profile_set_default(&mut profile_config, &name)
             }

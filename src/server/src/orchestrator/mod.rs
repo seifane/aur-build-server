@@ -141,7 +141,7 @@ impl Orchestrator {
             let last_version = package.last_built_version.clone();
             self.repository.handle_package_build_output(&mut package, version, error, log_files, files).await?;
             self.package_store.update_package(&package).await?;
-            if package.last_built_version != last_version {
+            if package.last_built_version.is_none() || package.last_built_version != last_version {
                 self.webhook_manager.trigger_webhook_package_updated(package.into()).await;
             }
         }
