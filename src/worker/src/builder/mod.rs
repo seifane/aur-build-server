@@ -11,7 +11,7 @@ use crate::builder::bubblewrap::Bubblewrap;
 use crate::builder::dependency::{aur_api_query_provides, AurPackage, build_dependency_graph, DependencyGraph};
 use crate::builder::utils::post_build_clean;
 use crate::commands::git::{apply_patches, clone_repo};
-use crate::commands::gpg::attempt_recv_gpg_keys;
+use crate::commands::gpg::attempt_recv_pgp_keys;
 use crate::commands::makepkg::{get_package_version, run_makepkg};
 use crate::commands::pacman::{pacman_update_repos};
 use crate::logs::{init_builder_logs};
@@ -110,8 +110,7 @@ impl Builder {
         copy_dir_all(self.config.data_path.join(&package.package_base), root.join("package")).await
             .with_context(|| "Failed to copy package into chroot")?;
 
-        info!("Attempting to fetch GPG keys");
-        attempt_recv_gpg_keys(&self.bubblewrap, &self.config.data_path, &package.package_base).await;
+        attempt_recv_pgp_keys(&self.bubblewrap, &self.config.data_path, &package.package_base).await;
 
         if let Some(run_before) = self.package_job.definition.run_before.as_ref() {
             info!("Running run_before command '{}'", run_before);

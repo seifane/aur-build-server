@@ -11,7 +11,7 @@ use std::sync::{Arc};
 use chrono::{DateTime, TimeDelta, Utc};
 use diesel::sqlite::Sqlite;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use log::info;
+use log::{debug, info};
 use tokio::sync::Mutex;
 use common::http::responses::{PackagePatchResponse, PackageResponse};
 use common::models::{PackageDefinition, PackageJob, PackagePatchDefinition, PackageStatus};
@@ -95,6 +95,21 @@ impl Package {
             last_built_version: self.last_built_version.clone(),
         }
     }
+
+    pub fn get_dummy() -> Self {
+        Self {
+            id: 1,
+            name: "test-package".to_string(),
+            run_before: Some(String::from("echo test")),
+            status: PackageStatus::BUILT.into(),
+            last_built: Some(Utc::now().timestamp()),
+            files: StringArray(vec![
+                String::from("test-package-1.2.3.tar.pkg.zst"),
+            ]),
+            last_built_version: Some(String::from("1.2.3")),
+            last_error: Some(String::from("When an error occurs it will show up here !")),
+        }
+    }
 }
 
 impl Into<PackageResponse> for Package {
@@ -174,6 +189,7 @@ pub struct PackageStore {
 
 impl PackageStore {
     pub fn from_disk(path: PathBuf) -> Result<Self> {
+        debug!("Opening database from {}", path.display());
         let connection = Arc::new(Mutex::new(SqliteConnection::establish(path.to_str().unwrap())?));
         Ok(PackageStore { connection })
     }

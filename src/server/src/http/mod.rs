@@ -4,6 +4,7 @@ mod base;
 mod packages;
 mod patches;
 mod workers;
+mod webhooks;
 
 use crate::http::auth_middleware::Auth;
 use crate::models::config::Config;
@@ -35,7 +36,8 @@ fn get_app(cfg: &mut ServiceConfig, state: HttpState, config: &Config) {
                 web::scope("/api")
                     .service(workers::register())
                     .service(patches::register())
-                    .service(packages::register()),
+                    .service(packages::register())
+                    .service(webhooks::register())
             )
             .service(api_worker::register()),
     );

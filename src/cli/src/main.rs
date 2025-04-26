@@ -8,7 +8,7 @@ use std::process::exit;
 use clap::Parser;
 use colored::Colorize;
 use crate::api::Api;
-use crate::args::{Args, Commands, PackageCommands, PatchCommands, ProfileCommands, WebhookCommands, WebhookTriggerCommands, WorkerCommands};
+use crate::args::{Args, Commands, PackageCommands, PatchCommands, ProfileCommands, WebhookCommands, WorkerCommands};
 use crate::commands::{logs_get, packages_create, packages_delete, packages_get, packages_list, packages_rebuild, patches_create, patches_delete, patches_list, profile_create, profile_delete, profile_list, profile_set_default, webhook_trigger_package_update, workers_delete, workers_list};
 use crate::profile::ProfileConfig;
 
@@ -73,12 +73,8 @@ fn main() {
         Commands::Logs { package} => logs_get(&api, package.clone()),
         Commands::Webhooks {command} => {
             match command {
-                WebhookCommands::Trigger { command } => {
-                    match command {
-                        WebhookTriggerCommands::PackageUpdated { package_name } => {
-                            webhook_trigger_package_update(&get_api(&args, &profile_config), package_name);
-                        }
-                    }
+                WebhookCommands::Trigger { } => {
+                    webhook_trigger_package_update(&get_api(&args, &profile_config));
                 }
             }
         }

@@ -116,18 +116,7 @@ pub enum PatchCommands {
 #[derive(Subcommand, Debug)]
 pub enum WebhookCommands {
     /// Manually trigger a webhook
-    Trigger {
-        #[command(subcommand)]
-        command: WebhookTriggerCommands
-    },
-}
-
-#[derive(Subcommand, Debug)]
-pub enum WebhookTriggerCommands {
-    /// Manually trigger a PackageUpdated webhook
-    PackageUpdated {
-        package_name: String
-    },
+    Trigger {},
 }
 
 #[derive(Subcommand, Debug)]

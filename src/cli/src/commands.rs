@@ -297,8 +297,8 @@ pub fn logs_get(api: &Api, package: String) {
     }
 }
 
-pub fn webhook_trigger_package_update(api: &Api, package: &String) {
-    let res = api.webhook_trigger_package(package);
+pub fn webhook_trigger_package_update(api: &Api) {
+    let res = api.webhook_trigger_package();
     match res {
         Ok(response) => {
             if response.success {

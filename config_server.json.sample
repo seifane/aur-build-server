@@ -1,6 +1,6 @@
 {
   "log_level": "info",
-  "log_path": "./aur_build_server.log",
+  "log_path": "./aur-build-server.log",
 
   "api_key": "changeme",
   "port": 8888,

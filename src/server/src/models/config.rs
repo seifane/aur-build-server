@@ -67,6 +67,13 @@ struct SharedConfig {
 
     #[clap(skip)]
     pub webhooks: Option<Vec<String>>,
+    /// Verify the validity of the presented ssl certificate. Default: 'true'
+    #[clap(long)]
+    pub webhook_verify_ssl: Option<bool>,
+    /// Trust this certificate when sending webhooks. Must be a path to a valid .pem certificate.
+    #[clap(long, value_hint = clap::ValueHint::DirPath)]
+    pub webhook_certificate: Option<PathBuf>,
+
     #[clap(skip)]
     pub packages: Vec<LegacyPackageDefinition>,
 }
@@ -110,6 +117,8 @@ pub struct Config {
     pub database_path: PathBuf,
 
     pub webhooks: Vec<String>,
+    pub webhook_verify_ssl: bool,
+    pub webhook_certificate: Option<PathBuf>,
     pub packages: Vec<LegacyPackageDefinition>,
 }
 
@@ -136,6 +145,8 @@ impl Config {
             database_path: cli_config.database_path.unwrap_or(file_config.database_path.unwrap_or(PathBuf::from("./server/aur-build.sqlite"))),
 
             webhooks: cli_config.webhooks.unwrap_or(file_config.webhooks.unwrap_or_default()),
+            webhook_verify_ssl: cli_config.webhook_verify_ssl.unwrap_or(file_config.webhook_verify_ssl.unwrap_or(true)),
+            webhook_certificate: merge_config_option!(cli_config, file_config, webhook_certificate),
             packages: file_config.packages,
         };
 

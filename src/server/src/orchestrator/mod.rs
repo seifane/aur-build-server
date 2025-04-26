@@ -1,5 +1,5 @@
 use crate::models::config::Config;
-use crate::persistence::package_store::{PackageInsert, PackagePatchInsert, PackageStore};
+use crate::persistence::package_store::{Package, PackageInsert, PackagePatchInsert, PackageStore};
 use crate::repository::Repository;
 use crate::webhooks::WebhookManager;
 use crate::worker::worker_manager::{WorkerDispatchResult, WorkerManager};
@@ -74,7 +74,7 @@ impl Orchestrator {
 
         Ok(Orchestrator {
             worker_manager: WorkerManager::new(),
-            webhook_manager: WebhookManager::from_config(config.clone()),
+            webhook_manager: WebhookManager::from_config(config.clone()).await?,
             repository: Repository::from_config(config.clone()).await?,
 
             package_store,
@@ -178,6 +178,10 @@ impl Orchestrator {
         Ok(())
     }
 
+    pub async fn send_test_webhook(&self) {
+        self.webhook_manager.trigger_webhook_package_updated(Package::get_dummy().into()).await;
+    }
+
     pub async fn dispatch_loop(orchestrator: Arc<RwLock<Orchestrator>>) {
         let is_running = orchestrator.read().await.is_running.clone();
 
@@ -221,6 +225,8 @@ mod tests {
             build_logs_path: PathBuf::from("/tmp/aur-build-server-test/logs"),
             database_path: ":memory:".into(),
             webhooks: vec![],
+            webhook_verify_ssl: false,
+            webhook_certificate: None,
             packages: vec![],
         };
         let mut orchestrator = Orchestrator::new(Arc::new(RwLock::new(config.clone()))).await.unwrap();
