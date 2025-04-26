@@ -86,6 +86,8 @@ mod tests {
                 serve_path: PathBuf::from("/tmp/aur-build-server-test/repo"),
                 build_logs_path: PathBuf::from("/tmp/aur-build-server-test/logs"),
                 database_path: ":memory:".into(),
+                webhook_verify_ssl: false,
+                webhook_certificate: None,
                 webhooks: vec![],
                 packages: vec![],
             };

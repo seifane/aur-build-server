@@ -202,29 +202,11 @@ pub async fn aur_api_query_provides(package_name: &String, strict: bool) -> Opti
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
-    use log::LevelFilter;
     use petgraph::Direction;
     use petgraph::prelude::EdgeRef;
     use serial_test::serial;
     use crate::builder::bubblewrap::Bubblewrap;
     use crate::builder::dependency::{AurPackage, build_dependency_graph};
-    use crate::models::config::Config;
-
-    fn get_config() -> Config {
-        Config {
-            log_level: LevelFilter::Debug,
-            log_path: PathBuf::from("./test/worker.log"),
-            pacman_config_path: PathBuf::from("../../config/pacman.conf"),
-            pacman_mirrorlist_path: PathBuf::from("../../config/mirrorlist"),
-            force_base_sandbox_create: false,
-            data_path: PathBuf::from("./test/data"),
-            sandbox_path: PathBuf::from("./test/sandbox"),
-            build_logs_path: PathBuf::from("./test/build_logs"),
-            base_url: "".to_string(),
-            base_url_ws: "".to_string(),
-            api_key: "".to_string(),
-        }
-    }
 
     fn get_bubblewrap() -> Bubblewrap {
         Bubblewrap::new(
