@@ -334,6 +334,10 @@ pub fn profile_create(config: &mut ProfileConfig) {
         base_url,
         api_key,
     });
+    
+    if config.get_profiles().len() == 1 {
+        config.set_default_profile(&config.get_profiles()[0].name.clone()).unwrap()
+    }
 
     if let Err(err) = res {
         println!("Unable to add profile: {}", err);

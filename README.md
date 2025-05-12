@@ -5,6 +5,14 @@
 This project aims to provide an external package building server based on any PKGBUILD based project.
 Right now, it pulls AUR packages, builds them with makepkg and serves them on a custom Arch repo.
 
+## Installing
+
+Packages are available in AUR.
+
+- [aur-build-server](https://aur.archlinux.org/packages/aur-build-server)
+- [aur-build-worker](https://aur.archlinux.org/packages/aur-build-worker)
+- [aur-build-cli](https://aur.archlinux.org/packages/aur-build-cli)
+
 ## Building
 
 Install the dependencies and build with this commands
@@ -37,6 +45,10 @@ You can have any numbers of workers at any time connected to the server. This al
 The worker makes use of bubblewrap to create a sandbox for building packages in a clean chroot. This also means that the worker does not need to have special sudoers access to pacman to build packages.
 However, it means that the worker won't run by default in a docker container because it makes use of syscalls that are forbidden by default.
 See the docker part of the docs for more info.
+
+### CLI
+
+The CLI is used to manage the list of packages to build as well as patches that you might want to apply. Check the [CLI docs](./docs/cli.md) for more details.
 
 ## Getting started
 

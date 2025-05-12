@@ -25,11 +25,12 @@ pub enum Commands {
         #[command(subcommand)]
         command: WorkerCommands,
     },
-    /// Packages related commands. list, rebuild.
+    /// Packages related commands. list, get, add, remove, rebuild.
     Packages {
         #[command(subcommand)]
         command: PackageCommands
     },
+    /// Patch related commands. list, add, remove.
     Patches {
         #[command(subcommand)]
         command: PatchCommands

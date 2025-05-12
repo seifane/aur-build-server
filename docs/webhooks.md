@@ -14,15 +14,23 @@ Example:
 {
   "type": "PackageUpdated",
   "payload": {
-    "package": {
-      "name": "google-chrome",
-      "run_before": null,
-      "patches": null
-    },
+    "id": 1,
+    "name": "test-package",
+    "run_before": "echo test",
     "status": "BUILT",
-    "last_built": "2024-01-01T00:00:00",
+    "last_built": "2025-04-26T09:41:28Z",
+    "files": [
+      "test-package-1.2.3.tar.pkg.zst"
+    ],
     "last_built_version": "1.2.3",
-    "last_error": null
+    "last_error": "When an error occurs it will show up here !"
   }
 }
 ```
+
+## Certificates
+
+You can disable the verification of SSL certificates (on by default) in the config.
+Alternatively you can specify a certificate to trust, also in the config.
+
+See the server configuration docs.

@@ -62,7 +62,7 @@ struct SharedConfig {
     #[clap(long, value_hint = clap::ValueHint::DirPath)]
     pub build_logs_path: Option<PathBuf>,
     /// Path to store database. Default: './server/aur-build.sqlite'
-    #[clap(long, value_hint = clap::ValueHint::DirPath)]
+    #[clap(short = 'd', long, value_hint = clap::ValueHint::DirPath)]
     pub database_path: Option<PathBuf>,
 
     #[clap(skip)]
@@ -75,7 +75,7 @@ struct SharedConfig {
     pub webhook_certificate: Option<PathBuf>,
 
     #[clap(skip)]
-    pub packages: Vec<LegacyPackageDefinition>,
+    pub packages: Option<Vec<LegacyPackageDefinition>>,
 }
 
 impl SharedConfig {
@@ -142,12 +142,12 @@ impl Config {
 
             serve_path: cli_config.serve_path.unwrap_or(file_config.serve_path.unwrap_or(PathBuf::from("./server/serve"))),
             build_logs_path: cli_config.build_logs_path.unwrap_or(file_config.build_logs_path.unwrap_or(PathBuf::from("./server/build_logs"))),
-            database_path: cli_config.database_path.unwrap_or(file_config.database_path.unwrap_or(PathBuf::from("./server/aur-build.sqlite"))),
+            database_path: cli_config.database_path.unwrap_or(file_config.database_path.unwrap_or(PathBuf::from("./server/aur_build.sqlite"))),
 
             webhooks: cli_config.webhooks.unwrap_or(file_config.webhooks.unwrap_or_default()),
             webhook_verify_ssl: cli_config.webhook_verify_ssl.unwrap_or(file_config.webhook_verify_ssl.unwrap_or(true)),
             webhook_certificate: merge_config_option!(cli_config, file_config, webhook_certificate),
-            packages: file_config.packages,
+            packages: file_config.packages.unwrap_or_default(),
         };
 
         Ok(config)
