@@ -3,14 +3,13 @@ use log::warn;
 use crate::builder::bubblewrap::Bubblewrap;
 use crate::utils::sanitize_dependency;
 
-pub async fn pacman_update_repos(bubblewrap: &Bubblewrap) -> Result<()>
+pub async fn pacman_update(bubblewrap: &Bubblewrap) -> Result<()>
 {
-    let output = bubblewrap.run_sandbox(true,"base", "/", "pacman", vec![
-        "-Syy"
-    ], None, None).await?;
+    let output = bubblewrap.run_sandbox(true, "base", "/", "pacman", vec!["-Syyu"], None, None)
+        .await?;
 
     if !output.status.success() {
-        bail!("Failed to update pacman repos with code {:?}", output.status.code());
+        bail!("Failed to update with code {:?}", output.status.code());
     }
 
     Ok(())

@@ -10,13 +10,15 @@ Packages will be migrated from the config file the first time the database is in
 
 - Webhook payload has been updated in a breaking way.
 
+- REST API as seen some changes might break.
+
 
 ### Changes
 
 - Server now uses actix instead of warp. This should not be affecting anything, and you can expect some improvement in download speeds for packages.
 - As stated in the breaking changes, packages are now stored in a sqlite database. This streamlines management of packages.
 - Improvements in the package building process
-
+- Worker will update its sandbox, this should fix failing builds on long-lived workers
 
 
 ## 0.20.0

@@ -133,12 +133,11 @@ async fn extract_dependencies(
 
     let (aur_dependencies, repo_dependencies) = split_aur_dependencies(bubblewrap, dependencies).await;
 
-    let aur_packages: Result<Vec<AurPackage>, Error> = future::join_all(
+    let mut aur_packages = future::join_all(
         aur_dependencies.iter().map(|i| async move {
             aur_api_query_provides(i, false).await.ok_or(anyhow!("Failed to get aur dependency {} by provide", i))
         })
-    ).await.into_iter().collect();
-    let mut aur_packages = aur_packages?;
+    ).await.into_iter().collect::<Result<Vec<AurPackage>, Error>>()?;
     aur_packages.retain(|i| !packages.contains(&i.package_base));
 
     debug!("Found AUR dependencies for {} {:?}", srcinfo.base.pkgbase, aur_packages);

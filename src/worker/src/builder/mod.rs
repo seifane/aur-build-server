@@ -13,7 +13,7 @@ use crate::builder::utils::post_build_clean;
 use crate::commands::git::{apply_patches, clone_repo};
 use crate::commands::gpg::attempt_recv_pgp_keys;
 use crate::commands::makepkg::{get_package_version, run_makepkg};
-use crate::commands::pacman::{pacman_update_repos};
+use crate::commands::pacman::{pacman_update};
 use crate::logs::{init_builder_logs};
 use crate::logs::LogSection::RunBefore;
 use crate::models::config::Config;
@@ -211,7 +211,7 @@ impl Builder {
 
         self.tx_status.send(WorkerStatus::UPDATING).await.unwrap();
         info!("Updating base chroot");
-        pacman_update_repos(&self.bubblewrap).await?;
+        pacman_update(&self.bubblewrap).await?;
 
         self.tx_status.send(WorkerStatus::WORKING).await.unwrap();
         self.stage_build(aur_package).await?;
@@ -305,29 +305,11 @@ mod tests {
     #[tokio::test]
     #[serial]
     #[ignore]
-    pub async fn test_dependencies_in_pkgbase() {
-        let job = PackageJob {
-            definition: PackageDefinition {
-                package_id: 1,
-                name: "headsetcontrol".to_string(),
-                run_before: None,
-                patches: vec![],
-            },
-            last_built_version: None,
-        };
-
-        let result = build_package(job).await.unwrap();
-        assert!(result.built);
-    }
-
-    #[tokio::test]
-    #[serial]
-    #[ignore]
     pub async fn test_build_package() {
         let job = PackageJob {
             definition: PackageDefinition {
                 package_id: 1,
-                name: "bottles".to_string(),
+                name: "coppwr".to_string(),
                 run_before: None,
                 patches: vec![],
             },
