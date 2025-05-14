@@ -5,7 +5,7 @@ use crate::utils::sanitize_dependency;
 
 pub async fn pacman_update(bubblewrap: &Bubblewrap) -> Result<()>
 {
-    let output = bubblewrap.run_sandbox(true, "base", "/", "pacman", vec!["-Syyu"], None, None)
+    let output = bubblewrap.run_sandbox(true, "base", "/", "pacman", vec!["-Syyu", "--noconfirm"], None, None)
         .await?;
 
     if !output.status.success() {
