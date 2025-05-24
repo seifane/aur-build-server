@@ -2,6 +2,8 @@
 
 When configuring the worker, CLI options will always take over the configuration file if provided.
 
+Avoid running the worker as root.
+
 ## Command Line Options
 
 ```text

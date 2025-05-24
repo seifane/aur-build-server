@@ -5,13 +5,10 @@
 ### Breaking changes
 
 - The packages are now stored in a sqlite database. This means that from now on adding / removing / updating packages and their patches is done through the CLI.
-
+  
 Packages will be migrated from the config file the first time the database is initialized to ease the transition, after that the packages will **not be read** from the config.
-
+- Rest API has been updated with breaking changes
 - Webhook payload has been updated in a breaking way.
-
-- REST API as seen some changes might break.
-
 
 ### Changes
 
