@@ -3,13 +3,13 @@
 ################################################################################
 
 # With:       reflector --country Singapore --fastest 5 --latest 50 --save /etc/pacman.d/mirrorlist
-# When:       2025-03-15 06:34:35 UTC
+# When:       2025-04-01 15:54:32 UTC
 # From:       https://archlinux.org/mirrors/status/json/
-# Retrieved:  2025-03-15 06:34:24 UTC
-# Last Check: 2025-03-15 06:31:07 UTC
+# Retrieved:  2025-04-01 15:54:21 UTC
+# Last Check: 2025-04-01 15:48:10 UTC
 
-Server = http://sg.mirrors.cicku.me/archlinux/$repo/os/$arch
-Server = https://singapore.mirror.pkgbuild.com/$repo/os/$arch
-Server = http://sg.arch.niranjan.co/$repo/os/$arch
 Server = https://sg.mirrors.cicku.me/archlinux/$repo/os/$arch
-Server = https://sg.arch.niranjan.co/$repo/os/$arch
+Server = http://sg.mirrors.cicku.me/archlinux/$repo/os/$arch
+Server = https://mirror.sg.gs/archlinux/$repo/os/$arch
+Server = https://mirror.freedif.org/archlinux/$repo/os/$arch
+Server = http://mirror.sg.gs/archlinux/$repo/os/$arch

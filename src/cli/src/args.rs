@@ -25,10 +25,15 @@ pub enum Commands {
         #[command(subcommand)]
         command: WorkerCommands,
     },
-    /// Packages related commands. list, rebuild.
+    /// Packages related commands. list, get, add, remove, rebuild.
     Packages {
         #[command(subcommand)]
         command: PackageCommands
+    },
+    /// Patch related commands. list, add, remove.
+    Patches {
+        #[command(subcommand)]
+        command: PatchCommands
     },
     /// <package> Fetch the logs for the given package.
     Logs {
@@ -59,30 +64,60 @@ pub enum WorkerCommands {
 #[derive(Subcommand, Debug)]
 pub enum PackageCommands {
     /// List packages
-    List {},
+    List {
+        #[clap(long, short, action)]
+        compact: bool,
+    },
+
+    /// Get detailed package info
+    Get {
+        name: String,
+    },
+
+    /// Add a new package
+    Add {
+        name: Option<String>,
+        run_before: Option<String>
+    },
+
+    /// Remove a package
+    Remove {
+        name: String
+    },
+
     /// package1 package2 [...] Rebuild specified packages, if no specified packages rebuild all.
     Rebuild {
         packages: Vec<String>,
         #[clap(long, short, action)]
         force: bool
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum PatchCommands {
+    /// List patches for packages
+    List {
+        package_name: String,
+    },
+
+    /// Add a new patch for a package
+    Add {
+        package_name: String,
+        url: String,
+        sha_512: Option<String>,
+    },
+
+    /// Remove a patch for a package
+    Remove {
+        package_name: String,
+        id: i32
     }
 }
 
 #[derive(Subcommand, Debug)]
 pub enum WebhookCommands {
     /// Manually trigger a webhook
-    Trigger {
-        #[command(subcommand)]
-        command: WebhookTriggerCommands
-    },
-}
-
-#[derive(Subcommand, Debug)]
-pub enum WebhookTriggerCommands {
-    /// Manually trigger a PackageUpdated webhook
-    PackageUpdated {
-        package_name: String
-    },
+    Trigger {},
 }
 
 #[derive(Subcommand, Debug)]

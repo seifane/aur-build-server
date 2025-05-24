@@ -1,8 +1,7 @@
 use std::path::{Path, PathBuf};
 use async_recursion::async_recursion;
-use log::debug;
-use tokio::fs::{create_dir_all, DirEntry, File, read_dir, read_to_string};
-use tokio::io::AsyncWriteExt;
+use log::{error};
+use tokio::fs::{create_dir_all, DirEntry, read_dir};
 use tokio::process::Command;
 use anyhow::{bail, Result};
 
@@ -65,31 +64,9 @@ pub async fn copy_dir(src: PathBuf, dst: PathBuf) -> Result<()>
     command.arg(dst);
     let out = command.output().await?;
     if !out.status.success() {
+        error!("Failed to copy directory {:?} {:?}", String::from_utf8(out.stdout), String::from_utf8(out.stderr));
         bail!("Failed to cp, with status code {:?}", out.status.code());
     }
-    Ok(())
-}
-
-// Temporary fix for https://github.com/rust-lang/rust/issues/127576
-pub async fn rm_dir(dir: PathBuf) -> Result<()> {
-    let mut command = Command::new("rm");
-    command.arg("-rf");
-    command.arg(dir);
-    let out = command.output().await?;
-    if !out.status.success() {
-        bail!("Failed to rm dir with status code {:?}", out.status.code());
-    }
-    Ok(())
-}
-
-pub async fn copy_file_contents(src: &PathBuf, dest: &PathBuf) -> Result<()>
-{
-    debug!("Copy file content from {:?} to {:?}", src, dest);
-    let src_contents = read_to_string(src).await?;
-
-    let mut dest_file = File::create(dest).await?;
-    dest_file.write_all(src_contents.as_bytes()).await?;
-
     Ok(())
 }
 

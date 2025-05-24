@@ -11,8 +11,9 @@ use tokio::time::sleep;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tokio_tungstenite::tungstenite::{Message, Utf8Bytes};
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use common::messages::WebsocketMessage;
-use common::models::PackageJob;
+use common::models::{PackageJob, WorkerStatus};
 use crate::builder::Builder;
 use crate::models::config::Config;
 use crate::worker::State;
@@ -135,7 +136,7 @@ impl WebsocketClient {
     pub fn new(config: &Config, state: Arc<RwLock<State>>) -> WebsocketClient
     {
         WebsocketClient {
-            url: format!("{}/ws", config.base_url_ws),
+            url: format!("{}/api_workers/ws", config.base_url_ws),
             api_key: config.api_key.clone(),
 
             state,
@@ -144,7 +145,9 @@ impl WebsocketClient {
 
     pub async fn connect(&mut self) -> Result<(JoinHandle<()>, JoinHandle<()>)> {
         info!("Connecting to websocket");
-        let (ws_stream, _) = connect_async(&self.url).await.with_context(|| "Failed to connect")?;
+        let mut request = self.url.clone().into_client_request()?;
+        request.headers_mut().insert("Authorization", self.api_key.parse()?);
+        let (ws_stream, _) = connect_async(request).await.with_context(|| "Failed to connect")?;
         info!("Connected to websocket");
 
         let (tx_ws, rx_ws) = ws_stream.split();
@@ -153,9 +156,10 @@ impl WebsocketClient {
         let send_task = tokio::task::spawn(websocket_send_task(tx_ws, UnboundedReceiverStream::new(rx)));
         let recv_task = tokio::task::spawn(websocket_recv_task(rx_ws, self.state.clone()));
 
-        info!("Sending authentication ...");
-        tx.send(WebsocketMessage::Authenticate {
-            api_key: self.api_key.clone(),
+        info!("Sending hello ...");
+        tx.send(WebsocketMessage::WorkerHello {
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            status: WorkerStatus::STANDBY,
         }).with_context(|| "Failed to send authenticate message")?;
 
         self.state.write().await.sender = Some(tx);

@@ -2,7 +2,7 @@
 
 There is kubernetes manifests provided as a reference in `kubernetes` folder.
 
-You will need to adjust the configuration and possibly add an ingress for the service.
+You will need to adjust the configuration, generate a proper mirrorlist and possibly add an ingress for the service.
 
 ## Prerequisites 
 
@@ -20,5 +20,5 @@ You will need to update the storage class in the PVC (`03-pvc-serve.yaml`) to ma
 
 You can deploy the manifests as usual with kubectl.
 ```bash
-kubectl apply -f kubernetes
+kubectl apply -f ./kubernetes
 ```

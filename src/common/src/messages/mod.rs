@@ -5,8 +5,9 @@ use crate::models::WorkerStatus;
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type", content = "payload")]
 pub enum WebsocketMessage {
-    Authenticate {
-      api_key: String,
+    WorkerHello {
+        version: String,
+        status: WorkerStatus,
     },
     JobSubmit {
         package: PackageJob,
@@ -14,7 +15,7 @@ pub enum WebsocketMessage {
     WorkerStatusRequest {},
     WorkerStatusUpdate {
         status: WorkerStatus,
-        package: Option<String>
+        job: Option<PackageJob>
     },
     UploadArtifactRequest {},
     UploadArtifactResponse {

@@ -1,5 +1,23 @@
 # Change log
 
+## 0.30.0
+
+### Breaking changes
+
+- The packages are now stored in a sqlite database. This means that from now on adding / removing / updating packages and their patches is done through the CLI.
+  
+Packages will be migrated from the config file the first time the database is initialized to ease the transition, after that the packages will **not be read** from the config.
+- Rest API has been updated with breaking changes
+- Webhook payload has been updated in a breaking way.
+
+### Changes
+
+- Server now uses actix instead of warp. This should not be affecting anything, and you can expect some improvement in download speeds for packages.
+- As stated in the breaking changes, packages are now stored in a sqlite database. This streamlines management of packages.
+- Improvements in the package building process
+- Worker will update its sandbox, this should fix failing builds on long-lived workers
+
+
 ## 0.20.0
 
 ### Breaking changes

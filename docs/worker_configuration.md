@@ -1,8 +1,10 @@
 # Worker Configuration
 
-When configuring the worker, cli arguments will always take over the file configuration if provided.
+When configuring the worker, CLI options will always take over the configuration file if provided.
 
-## Options
+Avoid running the worker as root.
+
+## Command Line Options
 
 ```text
 Usage: aur-build-worker [OPTIONS]
@@ -38,7 +40,7 @@ Options:
           Print version
 ```
 
-## File
+## Configuration File
 
 See a full example with default values in `config_worker.json.sample`.
 

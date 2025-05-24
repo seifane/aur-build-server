@@ -1,13 +1,13 @@
 mod payloads;
 
+use anyhow::Result;
 use std::sync::Arc;
-use log::{error, info};
-use reqwest::Client;
+use log::{error, info, warn};
+use reqwest::{Certificate, Client};
 use tokio::sync::RwLock;
 use common::http::responses::PackageResponse;
 use crate::models::config::Config;
 use crate::webhooks::payloads::{WebhookPayload};
-
 
 pub struct WebhookManager {
     config: Arc<RwLock<Config>>,
@@ -15,12 +15,24 @@ pub struct WebhookManager {
 }
 
 impl WebhookManager {
-    pub fn from_config(config: Arc<RwLock<Config>>) -> Self
+    pub async fn from_config(config: Arc<RwLock<Config>>) -> Result<Self>
     {
-        WebhookManager {
-            config,
-            client: Client::new()
+        let mut client = Client::builder();
+
+        if !config.read().await.webhook_verify_ssl {
+            warn!("Accepting any certificate for webhooks");
+            client = client.danger_accept_invalid_certs(true)
         }
+
+        if let Some(path) = &config.read().await.webhook_certificate {
+            warn!("Adding new root certificate for webhooks {}", path.display());
+            client = client.add_root_certificate(Certificate::from_pem(tokio::fs::read_to_string(path).await?.as_bytes())?);
+        }
+
+        Ok(WebhookManager {
+            config,
+            client: client.build()?
+        })
     }
 
     pub async fn trigger_webhook_package_updated(&self, package: PackageResponse) {

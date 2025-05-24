@@ -1,31 +1,29 @@
+use std::io::Read;
 use std::path::PathBuf;
 use anyhow::{Context, Result};
-
+use log::{log_enabled, Level};
+use os_pipe::PipeReader;
 use tokio::fs::{create_dir, File, OpenOptions, remove_dir_all};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncWriteExt};
 
 pub enum LogSection {
-    RunBeforeOut,
-    RunBeforeErr,
-    MakePkgOut(String),
-    MakePkgErr(String),
+    RunBefore,
+    MakePkg(String)
 }
 
 impl LogSection {
     pub fn to_header_string(&self) -> String
     {
         let message = match self {
-            LogSection::RunBeforeOut => "run_before StdOut".to_string(),
-            LogSection::RunBeforeErr => "run_before StdErr".to_string(),
-            LogSection::MakePkgOut(package) => format!("MakePkg {} StdOut", package),
-            LogSection::MakePkgErr(package) => format!("MakePkg {} StdErr", package),
+            LogSection::RunBefore => "run_before".to_string(),
+            LogSection::MakePkg(package) => format!("MakePkg {}", package),
         };
 
         format!("----------------------------\n{message}\n----------------------------\n")
     }
 }
 
-async fn get_log_file_handle(path: &PathBuf) -> Result<File> {
+pub async fn get_log_file_handle(path: &PathBuf) -> Result<File> {
     let parent = path.parent()
         .with_context(|| format!("Failed to get parent for path {:?}", path))?;
     if !parent.exists() {
@@ -38,24 +36,40 @@ async fn get_log_file_handle(path: &PathBuf) -> Result<File> {
     Ok(file)
 }
 
-async fn write_section_header(path: &PathBuf, section: LogSection) -> Result<()> {
-    let mut file = get_log_file_handle(path).await?;
-    file.write(section.to_header_string().as_bytes()).await?;
-    Ok(())
-}
+pub async fn write_tail_logs(
+    mut reader: PipeReader,
+    path: Option<PathBuf>,
+    section: Option<LogSection>
+) -> Result<()> {
+    let mut file = if let Some(path) = path {
+        let mut file = get_log_file_handle(&path).await?;
+        if let Some(section) = section {
+            file.write(section.to_header_string().as_bytes()).await?;
+        }
+        Some(file)
+    } else {
+        None
+    };
 
-async fn write_log(path: &PathBuf, data: &[u8]) -> Result<()> {
-    let mut file = get_log_file_handle(path).await?;
-    file.write(data).await?;
-    Ok(())
-}
-
-pub async fn write_log_section(path: &PathBuf, package_name: &String, section: LogSection, data: &[u8]) -> Result<()>
-{
-    let path = path.join(format!("{}.log", package_name));
-    write_section_header(&path, section).await?;
-    write_log(&path, data).await?;
-    Ok(())
+    let mut buffer = [0u8; 128];
+    loop {
+        match reader.read(&mut buffer) {
+            Ok(0) => {
+                return Ok(())
+            },
+            Ok(n) => {
+                if log_enabled!(Level::Debug) {
+                    print!("{}", String::from_utf8_lossy(&buffer[..n]));
+                }
+                if let Some(file) = file.as_mut() {
+                    file.write(&buffer[..n]).await?;
+                }
+            }
+            Err(e) => {
+                return Err(e.into());
+            }
+        }
+    }
 }
 
 pub async fn init_builder_logs(path: &PathBuf) -> Result<()>

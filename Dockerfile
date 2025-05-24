@@ -30,7 +30,7 @@ ENTRYPOINT ["/app/start-server.sh"]
 
 FROM base AS worker
 
-RUN pacman -Su base-devel git libgit2 openssl-1.1 bubblewrap fakechroot --noconfirm
+RUN pacman -Su base-devel git libgit2 openssl-1.1 bubblewrap fakechroot arch-install-scripts shadow --noconfirm
 
 RUN echo -e "[multilib]\nInclude = /etc/pacman.d/mirrorlist" | sudo tee -a /etc/pacman.conf
 

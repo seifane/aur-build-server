@@ -7,8 +7,6 @@ use clap::Parser;
 use log::LevelFilter;
 use serde::Deserialize;
 
-use common::models::PackageDefinition;
-
 macro_rules! merge_config_option {
     ($a:expr, $b:expr, $f: ident) => {
         {
@@ -63,11 +61,21 @@ struct SharedConfig {
     /// Path to store built packages and serve them. Default: './server/build_logs'
     #[clap(long, value_hint = clap::ValueHint::DirPath)]
     pub build_logs_path: Option<PathBuf>,
+    /// Path to store database. Default: './server/aur-build.sqlite'
+    #[clap(short = 'd', long, value_hint = clap::ValueHint::DirPath)]
+    pub database_path: Option<PathBuf>,
 
     #[clap(skip)]
     pub webhooks: Option<Vec<String>>,
+    /// Verify the validity of the presented ssl certificate. Default: 'true'
+    #[clap(long)]
+    pub webhook_verify_ssl: Option<bool>,
+    /// Trust this certificate when sending webhooks. Must be a path to a valid .pem certificate.
+    #[clap(long, value_hint = clap::ValueHint::DirPath)]
+    pub webhook_certificate: Option<PathBuf>,
+
     #[clap(skip)]
-    pub packages: Vec<PackageDefinition>,
+    pub packages: Option<Vec<LegacyPackageDefinition>>,
 }
 
 impl SharedConfig {
@@ -77,6 +85,19 @@ impl SharedConfig {
         let config: SharedConfig = serde_json::from_str(file.as_str())?;
         Ok(config)
     }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct LegacyPatch {
+    pub url: String,
+    pub sha512: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct LegacyPackageDefinition {
+    pub name: String,
+    pub run_before: Option<String>,
+    pub patches: Option<Vec<LegacyPatch>>
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -93,9 +114,12 @@ pub struct Config {
 
     pub serve_path: PathBuf,
     pub build_logs_path: PathBuf,
+    pub database_path: PathBuf,
 
     pub webhooks: Vec<String>,
-    pub packages: Vec<PackageDefinition>,
+    pub webhook_verify_ssl: bool,
+    pub webhook_certificate: Option<PathBuf>,
+    pub packages: Vec<LegacyPackageDefinition>,
 }
 
 impl Config {
@@ -118,9 +142,12 @@ impl Config {
 
             serve_path: cli_config.serve_path.unwrap_or(file_config.serve_path.unwrap_or(PathBuf::from("./server/serve"))),
             build_logs_path: cli_config.build_logs_path.unwrap_or(file_config.build_logs_path.unwrap_or(PathBuf::from("./server/build_logs"))),
+            database_path: cli_config.database_path.unwrap_or(file_config.database_path.unwrap_or(PathBuf::from("./server/aur_build.sqlite"))),
 
             webhooks: cli_config.webhooks.unwrap_or(file_config.webhooks.unwrap_or_default()),
-            packages: file_config.packages,
+            webhook_verify_ssl: cli_config.webhook_verify_ssl.unwrap_or(file_config.webhook_verify_ssl.unwrap_or(true)),
+            webhook_certificate: merge_config_option!(cli_config, file_config, webhook_certificate),
+            packages: file_config.packages.unwrap_or_default(),
         };
 
         Ok(config)

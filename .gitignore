@@ -1,8 +1,7 @@
 target/
-server/
-worker/
+local/
 
-src/worker/tests
+src/worker/test/
 
 key.asc
 
@@ -18,5 +17,5 @@ arch-packages/aur-build-worker
 
 config_server.json
 config_worker.json
-aur_build_worker.log
-aur_build_server.log
+aur-build-worker.log
+aur-build-server.log

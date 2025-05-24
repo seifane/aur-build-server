@@ -8,8 +8,8 @@ use std::process::exit;
 use clap::Parser;
 use colored::Colorize;
 use crate::api::Api;
-use crate::args::{Args, Commands, PackageCommands, ProfileCommands, WebhookCommands, WebhookTriggerCommands, WorkerCommands};
-use crate::commands::{logs_get, packages_list, packages_rebuild, profile_create, profile_delete, profile_list, profile_set_default, webhook_trigger_package_update, workers_delete, workers_list};
+use crate::args::{Args, Commands, PackageCommands, PatchCommands, ProfileCommands, WebhookCommands, WorkerCommands};
+use crate::commands::{logs_get, packages_create, packages_delete, packages_get, packages_list, packages_rebuild, patches_create, patches_delete, patches_list, profile_create, profile_delete, profile_list, profile_set_default, webhook_trigger_package_update, workers_delete, workers_list};
 use crate::profile::ProfileConfig;
 
 fn get_api(args: &Args, profile_config: &ProfileConfig) -> Api {
@@ -47,6 +47,7 @@ fn main() {
     match &args.command {
         Commands::Workers { command} => {
             let api = get_api(&args, &profile_config);
+
             match command {
                 WorkerCommands::List { .. } => workers_list(&api),
                 WorkerCommands::Evict { id } => workers_delete(&api, *id)
@@ -54,20 +55,36 @@ fn main() {
         },
         Commands::Packages { command } => {
             let api = get_api(&args, &profile_config);
+
             match command {
-                PackageCommands::List {} => packages_list(&api),
+                PackageCommands::List { compact } => packages_list(&api, compact),
+                PackageCommands::Get { name} => packages_get(&api, name),
+                PackageCommands::Add { name, run_before} => packages_create(&api, name, run_before),
+                PackageCommands::Remove { name } => packages_delete(&api, name),
                 PackageCommands::Rebuild { packages, force } => packages_rebuild(&api, packages.clone(), *force),
             }
         }
-        Commands::Logs { package} => logs_get(&get_api(&args, &profile_config), package.clone()),
-        Commands::Webhooks {command} => {
+        Commands::Patches { command } => {
+            let api = get_api(&args, &profile_config);
+
             match command {
-                WebhookCommands::Trigger { command } => {
-                    match command {
-                        WebhookTriggerCommands::PackageUpdated { package_name } => {
-                            webhook_trigger_package_update(&get_api(&args, &profile_config), package_name);
-                        }
-                    }
+                PatchCommands::List { package_name } => patches_list(&api, package_name),
+                PatchCommands::Add { package_name, url, sha_512 } =>
+                    patches_create(&api, package_name, url, sha_512),
+                PatchCommands::Remove { package_name, id } =>
+                    patches_delete(&api, package_name, *id)
+            }
+        }
+        Commands::Logs { package} => {
+            let api = get_api(&args, &profile_config);
+            logs_get(&api, package.clone())
+        },
+        Commands::Webhooks {command} => {
+            let api = get_api(&args, &profile_config);
+
+            match command {
+                WebhookCommands::Trigger { } => {
+                    webhook_trigger_package_update(&api);
                 }
             }
         }
@@ -75,7 +92,6 @@ fn main() {
             match command {
                 ProfileCommands::List {} => profile_list(&profile_config),
                 ProfileCommands::Create {} => profile_create(&mut profile_config),
-                // ProfileCommands::Update { .. } => {}
                 ProfileCommands::Delete { name } => profile_delete(&mut profile_config, &name),
                 ProfileCommands::SetDefault { name } => profile_set_default(&mut profile_config, &name)
             }

@@ -1,7 +1,7 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use std::path::PathBuf;
 
-use log::{error, info};
+use log::{error, info, warn};
 use petgraph::Direction;
 use tokio::sync::mpsc::Sender;
 
@@ -11,10 +11,11 @@ use crate::builder::bubblewrap::Bubblewrap;
 use crate::builder::dependency::{aur_api_query_provides, AurPackage, build_dependency_graph, DependencyGraph};
 use crate::builder::utils::post_build_clean;
 use crate::commands::git::{apply_patches, clone_repo};
-use crate::commands::gpg::attempt_recv_gpg_keys;
+use crate::commands::gpg::attempt_recv_pgp_keys;
 use crate::commands::makepkg::{get_package_version, run_makepkg};
-use crate::commands::pacman::{pacman_update_repos};
-use crate::logs::{init_builder_logs, LogSection, write_log_section};
+use crate::commands::pacman::{pacman_update};
+use crate::logs::{init_builder_logs};
+use crate::logs::LogSection::RunBefore;
 use crate::models::config::Config;
 use crate::models::package_build_result::PackageBuildResult;
 use crate::orchestrator::http::HttpClient;
@@ -49,8 +50,9 @@ impl Builder {
 
     async fn fetch_package(&self) -> Result<AurPackage>
     {
-        let parent_package = aur_api_query_provides(&self.package_job.definition.name).await;
-        let repository = clone_repo(&self.config.data_path, &parent_package.package_base)?;
+        let parent_package = aur_api_query_provides(&self.package_job.definition.name, true).await
+            .ok_or(anyhow!("Failed to get {} package by provide", &self.package_job.definition.name))?;
+        let repository = clone_repo(&self.config.data_path, &self.package_job.definition.name)?;
         apply_patches(&self.package_job, repository).await?;
         Ok(parent_package)
     }
@@ -98,6 +100,8 @@ impl Builder {
         &self,
         package: &AurPackage,
     ) -> Result<()> {
+        let log_path = self.config.build_logs_path.join(format!("{}.log", self.package_job.definition.name));
+
         info!("Building package {}", package.package_base);
 
         let root = self.init_build_chroot().await.with_context(|| "Failed to init build chroot")?;
@@ -106,21 +110,40 @@ impl Builder {
         copy_dir_all(self.config.data_path.join(&package.package_base), root.join("package")).await
             .with_context(|| "Failed to copy package into chroot")?;
 
-        info!("Attempting to fetch GPG keys");
-        attempt_recv_gpg_keys(&self.bubblewrap, &self.config.data_path, &package.package_base).await;
+        attempt_recv_pgp_keys(&self.bubblewrap, &self.config.data_path, &package.package_base).await;
 
         if let Some(run_before) = self.package_job.definition.run_before.as_ref() {
             info!("Running run_before command '{}'", run_before);
-            let output = self.bubblewrap.run_sandbox_fakeroot("current", "/", "sh", vec!["-c", run_before.as_str()]).await
+            let output = self.bubblewrap.run_sandbox(
+                true,
+                "current",
+                "/",
+                "sh",
+                vec!["-c", run_before.as_str()],
+                Some(&log_path),
+                Some(RunBefore)
+            ).await
                 .with_context(|| format!("Failed to execute run_before for {}", package.package_base))?;
-            write_log_section(&self.config.build_logs_path, &self.package_job.definition.name, LogSection::RunBeforeOut, output.stdout.as_slice()).await?;
-            write_log_section(&self.config.build_logs_path, &self.package_job.definition.name, LogSection::RunBeforeErr, output.stderr.as_slice()).await?;
+            if !output.status.success() {
+                warn!("run_before '{}' failed for {} with status code {:?}, check logs for details", run_before, package.package_base, output.status.code());
+            }
         }
 
-        let output = run_makepkg(&self.bubblewrap, &package.package_base).await
+        if !package.repo_deps.is_empty() {
+            let mut pacman_args = vec!["-S", "--noconfirm", "--ask", "20"];
+            pacman_args.append(&mut package.repo_deps.iter().map(|x| x.as_str()).collect());
+
+            info!("Installing dependencies from repo {:?}", pacman_args);
+
+            self.bubblewrap.run_sandbox(true, "current", "/", "pacman", pacman_args, None, None).await?;
+        }
+
+        let output = run_makepkg(
+            &self.bubblewrap,
+            &package.package_base,
+            &log_path
+        ).await
             .with_context(|| format!("Error while running makepkg for {}", &package.package_base))?;
-        write_log_section(&self.config.build_logs_path, &self.package_job.definition.name, LogSection::MakePkgOut(package.package_base.clone()), output.stdout.as_slice()).await?;
-        write_log_section(&self.config.build_logs_path, &self.package_job.definition.name, LogSection::MakePkgErr(package.package_base.clone()), output.stderr.as_slice()).await?;
 
         if !output.status.success() {
             bail!("Failed to run makepkg for {}", package.package_base);
@@ -165,14 +188,16 @@ impl Builder {
         let mut dep_graph = build_dependency_graph(&self.bubblewrap, &self.config.data_path, aur_package).await
             .with_context(|| "Failed to build dependency graph")?;
 
+        info!("Handling dependencies");
         self.handle_dependencies(&mut dep_graph).await?;
+        info!("Handling package");
         self.handle_package(&mut dep_graph).await?;
 
         Ok(())
     }
 
     pub async fn try_process_package(&self) -> Result<PackageBuildResult> {
-        self.tx_status.send(WorkerStatus::INIT).await.unwrap();
+        self.tx_status.send(WorkerStatus::INIT).await?;
         let aur_package = self.stage_init().await?;
 
         info!("Checking package version");
@@ -186,7 +211,7 @@ impl Builder {
 
         self.tx_status.send(WorkerStatus::UPDATING).await.unwrap();
         info!("Updating base chroot");
-        pacman_update_repos(&self.bubblewrap).await?;
+        pacman_update(&self.bubblewrap).await?;
 
         self.tx_status.send(WorkerStatus::WORKING).await.unwrap();
         self.stage_build(aur_package).await?;
@@ -249,7 +274,7 @@ mod tests {
             log_level: LevelFilter::Debug,
             log_path: PathBuf::from("./test/worker.log"),
             pacman_config_path: PathBuf::from("../../config/pacman.conf"),
-            pacman_mirrorlist_path: PathBuf::from("../../config/mirrorlist"),
+            pacman_mirrorlist_path: PathBuf::from("/etc/pacman.d/mirrorlist"),
             force_base_sandbox_create: false,
             data_path: PathBuf::from("./test/data"),
             sandbox_path: PathBuf::from("./test/sandbox"),
@@ -273,24 +298,8 @@ mod tests {
             &config
         );
 
-        builder.try_process_package().await
-    }
-
-    #[tokio::test]
-    #[serial]
-    #[ignore]
-    pub async fn test_dependencies_in_pkgbase() {
-        let job = PackageJob {
-            definition: PackageDefinition {
-                name: "phpstorm".to_string(),
-                run_before: None,
-                patches: None,
-            },
-            last_built_version: None,
-        };
-
-        let result = build_package(job).await.unwrap();
-        assert!(result.built);
+        let res = builder.try_process_package().await;
+        res
     }
 
     #[tokio::test]
@@ -299,9 +308,10 @@ mod tests {
     pub async fn test_build_package() {
         let job = PackageJob {
             definition: PackageDefinition {
-                name: "flutter".to_string(),
+                package_id: 1,
+                name: "coppwr".to_string(),
                 run_before: None,
-                patches: None,
+                patches: vec![],
             },
             last_built_version: None,
         };

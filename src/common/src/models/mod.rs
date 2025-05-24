@@ -1,16 +1,18 @@
 use std::fmt;
 use serde::{Deserialize, Serialize};
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct PackagePatch {
+pub struct PackagePatchDefinition {
     pub url: String,
     pub sha512: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct PackageDefinition {
+    pub package_id: i32,
     pub name: String,
     pub run_before: Option<String>,
-    pub patches: Option<Vec<PackagePatch>>,
+    pub patches: Vec<PackagePatchDefinition>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -19,12 +21,32 @@ pub struct PackageJob {
     pub last_built_version: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Copy, Hash, Eq)]
+#[repr(u8)]
 pub enum PackageStatus {
-    PENDING,
-    BUILDING,
-    BUILT,
-    FAILED,
+    UNKNOWN = 0,
+    PENDING = 1,
+    BUILDING = 2,
+    BUILT = 3,
+    FAILED = 4,
+}
+
+impl PackageStatus {
+    pub fn from_u8(value: u8) -> PackageStatus {
+        match value {
+            1 => PackageStatus::PENDING,
+            2 => PackageStatus::BUILDING,
+            3 => PackageStatus::BUILT,
+            4 => PackageStatus::FAILED,
+            _ => PackageStatus::UNKNOWN,
+        }
+    }
+}
+
+impl Into<i16> for PackageStatus {
+    fn into(self) -> i16 {
+        self as u8 as i16
+    }
 }
 
 impl fmt::Display for PackageStatus {

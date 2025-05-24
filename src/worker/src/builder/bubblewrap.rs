@@ -1,13 +1,13 @@
-use anyhow::{bail, Result};
-use std::ffi::OsStr;
-use std::path::PathBuf;
-use std::process::Output;
-use log::{debug, info};
-use tokio::fs::{create_dir_all, File, remove_dir_all};
-use tokio::io::AsyncWriteExt;
+use anyhow::{anyhow, bail, Result};
+use std::path::{PathBuf};
+use std::process::{Output};
+use log::{debug, error, info, warn};
+use tokio::fs::{create_dir_all, remove_dir_all};
 use tokio::process::Command;
+use crate::builder::utils::run_command;
+use crate::logs::LogSection;
 use crate::models::config::Config;
-use crate::utils::{copy_dir, copy_file_contents, get_package_dir_entries, rm_dir};
+use crate::utils::{copy_dir, get_package_dir_entries};
 
 pub struct Bubblewrap {
     sandbox_path: PathBuf,
@@ -40,10 +40,16 @@ impl Bubblewrap {
         self.sandbox_path.join(name)
     }
 
-    pub async fn _delete(&self, name: &str) -> Result<()> {
+    pub async fn delete(&self, name: &str) -> Result<()> {
         let path = self.sandbox_path.join(name);
         if path.exists() {
-            remove_dir_all(&path).await?;
+            info!("Deleting {}", name);
+            let out = Command::new("unshare")
+                .args(vec!["--map-auto", "-r", "--", "rm", "-rf", path.canonicalize()?.to_str().ok_or(anyhow!("Failed to canonicalize path"))?])
+                .output().await?;
+            if !out.status.success() {
+                bail!("Failed to delete sandbox {} with code {:?}", name, out.status.code());
+            }
         }
         Ok(())
     }
@@ -51,7 +57,7 @@ impl Bubblewrap {
     pub async fn create(&self, force: bool) -> Result<()>
     {
         if force {
-            let _ = rm_dir(self.sandbox_path.join("base")).await;
+            let _ = remove_dir_all(self.sandbox_path.join("base")).await;
         } else {
             if self.sandbox_path.join("base").exists() {
                 info!("Base sandbox already present, not creating");
@@ -61,64 +67,118 @@ impl Bubblewrap {
 
         info!("Creating new base sandbox");
 
-        info!("Creating directories");
-        create_dir_all(&self.sandbox_path).await?;
-        create_dir_all(self.sandbox_path.join("base/var/lib/pacman")).await?;
-        create_dir_all(self.sandbox_path.join("base/etc")).await?;
-        create_dir_all(self.sandbox_path.join("base/etc/pacman.d")).await?;
+        debug!("Creating sandbox folders");
+        create_dir_all(&self.sandbox_path.join("base/etc")).await?;
+        create_dir_all(&self.sandbox_path.join("base/var/lib/pacman")).await?;
+        create_dir_all(&self.sandbox_path.join("base/etc/pacman.d")).await?;
+        create_dir_all(&self.sandbox_path.join("base/home/app")).await?;
 
-        info!("Setting up configuration");
-        copy_file_contents(&self.pacman_config_path, &self.sandbox_path.join("base/etc/pacman.conf")).await?;
-        copy_file_contents(&self.pacman_mirrorlist_path, &self.sandbox_path.join("base/etc/pacman.d/mirrorlist")).await?;
+        debug!("Copying pacman.conf");
+        tokio::fs::copy(&self.pacman_config_path, &self.sandbox_path.join("base/etc/pacman.conf")).await?;
+        debug!("Copying mirrorlist");
+        tokio::fs::copy(&self.pacman_mirrorlist_path, &self.sandbox_path.join("base/etc/pacman.d/mirrorlist")).await?;
+        debug!("Copying locale.gen");
+        tokio::fs::copy("/etc/locale.gen", &self.sandbox_path.join("base/etc/locale.gen")).await?;
 
-        info!("Writing locale.gen");
-        let mut file = File::create(self.sandbox_path.join("base/etc/locale.gen")).await?;
-        file.write("en_US.UTF-8 UTF-8".as_bytes()).await?;
-        drop(file);
+        let mut command = Command::new("fakechroot");
+        command.args(vec![
+            "fakeroot",
+            "pacman",
+            "-Syu",
+            "--noconfirm",
+            "--root", &self.sandbox_path.join("base/").canonicalize()?.to_str().unwrap(),
+            "--dbpath", &self.sandbox_path.join("base/var/lib/pacman").canonicalize()?.to_str().unwrap(),
+            "--config", &self.sandbox_path.join("base/etc/pacman.conf").canonicalize()?.to_str().unwrap(),
+            "base", "fakeroot", "base-devel"
+        ]);
 
-        info!("Installing base packages");
-        let out = self.run_fakechroot("pacman", vec![
-            "-Syu", "--noconfirm", "--root", self.sandbox_path.join("base").to_str().unwrap(),
-            "--dbpath", self.sandbox_path.join("base/var/lib/pacman").to_str().unwrap(),
-            "--config", self.sandbox_path.join("base/etc/pacman.conf").to_str().unwrap(),
-            "base", "fakeroot", "base-devel", "ca-certificates", "ca-certificates-utils"
-        ]).await?;
-        info!("Base package installed finished with output code {:?}", out.status.code());
-        debug!("stdout:\n{}stderr:\n{}", String::from_utf8(out.stdout.as_slice().to_vec()).unwrap(), String::from_utf8(out.stderr.as_slice().to_vec()).unwrap());
+        let res = run_command(
+            command,
+            None,
+            None
+        )?.wait_with_output().await?;
 
-        info!("Generating locale");
-        let out = self.run_sandbox("base","/", "locale-gen", vec![]).await?;
-        info!("Locale generation finished with output code {:?}", out.status.code());
-        debug!("stdout:\n{}stderr:\n{}", String::from_utf8(out.stdout.as_slice().to_vec()).unwrap(), String::from_utf8(out.stderr.as_slice().to_vec()).unwrap());
+        debug!("pacman init command command output: {:?} ",res.status.code());
 
-        info!("Initializing pacman key");
-        let out = self.run_sandbox_fakeroot("base","/", "pacman-key", vec!["--init"]).await?;
-        info!("Pacman key initialization finished with code: {:?}", out.status.code());
-        debug!("stdout:\n{}stderr:\n{}", String::from_utf8(out.stdout.as_slice().to_vec()).unwrap(), String::from_utf8(out.stderr.as_slice().to_vec()).unwrap());
+        if !res.status.success() {
+            error!("Failed to build sandbox environment with error code: {:?}, \
+            check logs with debug level for more information", res.status.code());
+            return Err(anyhow!("Failed to build sandbox environment"));
+        }
 
-        info!("Populating pacman keyring");
-        let out = self.run_sandbox_fakeroot("base","/", "pacman-key", vec!["--populate"]).await?;
-        info!("Pacman keyring population finished with code: {:?}", out.status.code());
-        debug!("stdout:\n{}stderr:\n{}", String::from_utf8(out.stdout.as_slice().to_vec()).unwrap(), String::from_utf8(out.stderr.as_slice().to_vec()).unwrap());
+        self.run_sandbox(true, "base", "/", "locale-gen", vec![], None, None).await?;
+        self.run_sandbox(true, "base", "/", "pacman-key", vec!["--init"], None, None).await?;
+        self.run_sandbox(true, "base", "/", "pacman-key", vec!["--populate"], None, None).await?;
 
         Ok(())
     }
 
     pub async fn create_from_base(&self, name: &str) -> Result<PathBuf>
     {
-        let out = self.run_sandbox_fakeroot("base","/", "pacman", vec!["-Syy"]).await?;
-        if !out.status.success() {
-            bail!("create_from_base({}): Failed update pacman", name);
-        }
+        self.delete(name).await?;
 
         let dest = self.sandbox_path.join(name);
-        if dest.exists() {
-            rm_dir(dest.clone()).await?;
-        }
-
         copy_dir(self.sandbox_path.join("base"), dest.clone()).await?;
 
         Ok(dest)
+    }
+
+    pub async fn run_sandbox(
+        &self,
+        as_root: bool,
+        env: &str,
+        chdir: &str,
+        program: &str,
+        mut program_args: Vec<&str>,
+        log_path: Option<&PathBuf>,
+        log_section: Option<LogSection>
+    ) -> Result<Output>
+    {
+        let as_user = if as_root {
+            "-r"
+        } else {
+            "-c"
+        };
+
+        let env_path = self.sandbox_path.join(env).canonicalize()?;
+
+        let mut args = vec![
+            "--map-auto",
+            as_user,
+            "--",
+            "bwrap",
+            "--bind", env_path.to_str().unwrap(), "/",
+            "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
+            "--perms", "1777",
+            "--tmpfs", "/tmp",
+            "--proc", "/proc",
+            "--dev", "/dev",
+            "--chdir", chdir,
+        ];
+        args.push(program);
+        args.append(&mut program_args);
+
+        let mut command = Command::new("unshare");
+        command
+            .env_clear()
+            .env("FAKEROOTDONTTRYCHOWN", "true")
+            .env("HOME", "/home/app")
+            .env("_JAVA_OPTIONS", "-Duser.home=/home/app")
+            .env("USER", "app")
+            .env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+            .args(&args);
+
+        let res = run_command(command,
+            log_path,
+            log_section
+        )?.wait_with_output().await?;
+
+        debug!(
+            "sandbox command {:?} code: {:?}",
+            args,
+            res.status.code(),
+        );
+        Ok(res)
     }
 
     pub async fn create_from_base_install_packages(&self, name: &str, packages: Vec<PathBuf>) -> Result<PathBuf> {
@@ -132,61 +192,25 @@ impl Bubblewrap {
 
             let mut args = vec![
                 "--noconfirm",
-                "-U"
+                "-U",
+                "--ask",
+                "20"
             ];
 
             for i in packages.iter() {
                 let file_name = i.file_name().unwrap();
-                args.push(file_name.to_str().unwrap());
                 tokio::fs::copy(i, &dep_path.join(file_name)).await?;
+                args.push(file_name.to_str().unwrap());
             }
 
-            let out = self.run_sandbox_fakeroot(name, "/dependencies", "pacman", args).await?;
-            debug!("Dependency install output code {:?}\nstdout:\n{}stderr:\n{}", out.status.code(), String::from_utf8(out.stdout.as_slice().to_vec()).unwrap(), String::from_utf8(out.stderr.as_slice().to_vec()).unwrap());
+            debug!("Installing built dependencies with {:?}", args);
+            let out = self.run_sandbox(true, name, "/dependencies", "pacman", args, None, None).await?;
+            if !out.status.success() {
+                warn!("Failed to install dependencies with status code {:?}", out.status.code());
+            }
         }
 
         Ok(path)
-    }
-
-    fn get_sandbox_command<S: AsRef<OsStr>>(&self, sandbox_name: &str, dir: &str,  program: S, args: Vec<&str>) -> Command
-    {
-        let mut command = Command::new("bwrap");
-        command.env("PACMAN_AUTH", "fakeroot");
-        command.env("FAKEROOTDONTTRYCHOWN", "true");
-        command.env("HOME", "/root");
-        command.env("_JAVA_OPTIONS", "-Duser.home=/home/user"); // Fixes gradle issues: https://discuss.gradle.org/t/gradles-wrapper-is-creating-a-folder-called/10905/5
-
-        command.args(vec![
-            "--new-session",
-            "--bind", self.sandbox_path.join(sandbox_name).to_str().unwrap(), "/",
-            "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
-            "--tmpfs", "/tmp",
-            "--proc", "/proc",
-            "--dev", "/dev",
-            "--chdir", dir
-        ]);
-        command.arg(program);
-        command.args(args);
-
-        return command;
-    }
-
-    pub async fn run_sandbox<S: AsRef<OsStr>>(&self, sandbox_name: &str, dir: &str,  program: S, args: Vec<&str>) -> Result<Output>
-    {
-        let mut command = self.get_sandbox_command(sandbox_name, dir, program, args);
-        let out = command.output().await?;
-        Ok(out)
-    }
-
-   pub async fn run_sandbox_fakeroot(&self, sandbox_name: &str, dir: &str,  program: &str, args: Vec<&str>) -> Result<Output>
-    {
-        let mut new_args = vec![program];
-        new_args.append(&mut args.clone());
-
-        let mut command = self.get_sandbox_command(sandbox_name, dir, "fakeroot", new_args);
-
-        let out = command.output().await?;
-        Ok(out)
     }
 
     pub async fn copy_built_packages(&self, dest: PathBuf) -> Result<()>
@@ -200,17 +224,5 @@ impl Bubblewrap {
         }
 
         Ok(())
-    }
-
-    async fn run_fakechroot<S: AsRef<OsStr>>(&self, program: S, args: Vec<&str>) -> Result<Output>
-    {
-        let mut command = Command::new("fakechroot");
-        command.arg("fakeroot");
-        command.arg(program);
-        command.args(args);
-
-        let out = command.output().await?;
-
-        Ok(out)
     }
 }

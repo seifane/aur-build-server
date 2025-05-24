@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use log::{error, info};
-use reqwest::multipart::{Form, Part};
+use reqwest::multipart::Form;
 use tokio::fs::{read_dir};
 use crate::models::config::Config;
 use crate::models::package_build_result::PackageBuildResult;
@@ -21,11 +21,10 @@ impl HttpClient {
     async fn add_logs_to_form(&self, mut form: Form) -> Result<Form> {
         let mut dir = read_dir(&self.config.build_logs_path).await?;
         while let Some(entry) = dir.next_entry().await? {
-            let content = tokio::fs::read(entry.path()).await?;
             let file_name = entry.file_name().into_string().unwrap();
 
             info!("Uploading log file {}", file_name);
-            form = form.part("log_files[]", Part::bytes(content).file_name(file_name));
+            form = form.file("log_files", entry.path()).await?;
         }
 
         Ok(form)
@@ -36,12 +35,10 @@ impl HttpClient {
         let packages = get_package_dir_entries(&self.config.data_path.join("_built")).await?;
 
         for entry in packages.iter() {
-            let content = tokio::fs::read(entry.path()).await?;
             let file_name = entry.file_name().into_string().unwrap();
 
             info!("Uploading package file {}", file_name);
-            // TODO: Stream the payload instead of loading it
-            form = form.part("files[]", Part::bytes(content).file_name(file_name));
+            form = form.file("files", entry.path()).await?;
         }
 
         Ok(form)
@@ -60,7 +57,6 @@ impl HttpClient {
             }
             Err(e) => {
                 form.text("error", format!("{:#}", e))
-                    .text("version", "".to_string())
             }
         };
 
@@ -79,13 +75,19 @@ impl HttpClient {
         let form = self.build_form(package_name, build_result).await?;
 
         let res = reqwest::Client::new()
-            .post(format!("{}/api/worker/upload", self.config.base_url))
+            .post(format!("{}/api_workers/upload", self.config.base_url))
             .header("Authorization", &self.config.api_key)
             .multipart(form)
             .send().await;
 
         match res {
-            Ok(response) => {info!("Upload response {}", response.status())}
+            Ok(response) => {
+                if response.status().is_success() {
+                    info!("Upload response {}", response.status())
+                } else {
+                    error!("Upload error {}: '{}'", response.status(), response.text().await?);
+                }
+            }
             Err(err) => {error!("Error uploading {:?}", err)}
         }
 
